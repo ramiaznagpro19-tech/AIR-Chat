@@ -83,7 +83,7 @@ object VoiceCallManager {
     var videoQuality: AirVideoQuality by mutableStateOf(AirVideoQuality.load(StoatApplication.instance))
         private set
 
-    fun setVideoQuality(quality: AirVideoQuality) {
+    fun changeVideoQuality(quality: AirVideoQuality) {
         videoQuality = quality
         AirVideoQuality.save(context, quality)
         val room = room ?: return

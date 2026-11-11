@@ -570,7 +570,7 @@ fun VoiceSheet(onDisconnect: () -> Unit) {
                                         }
                                     },
                                     onClick = {
-                                        VoiceCallManager.setVideoQuality(quality)
+                                        VoiceCallManager.changeVideoQuality(quality)
                                         qualityMenuOpen = false
                                     }
                                 )
