@@ -1469,4 +1469,18 @@
     <string name="airnet_back">Back</string>
     <string name="airnet_encrypted">End-to-end encrypted</string>
     <string name="airnet_relays">Connected relays: %1$d</string>
+    <string name="airnet_call_audio">Voice call</string>
+    <string name="airnet_call_video">Video call</string>
+    <string name="airnet_call_incoming">Incoming call…</string>
+    <string name="airnet_call_calling">Calling…</string>
+    <string name="airnet_call_connecting">Connecting…</string>
+    <string name="airnet_call_accept">Accept</string>
+    <string name="airnet_call_decline">Decline</string>
+    <string name="airnet_call_hangup">Hang up</string>
+    <string name="airnet_call_mic">Microphone</string>
+    <string name="airnet_call_camera">Camera</string>
+    <string name="airnet_call_flip">Switch camera</string>
+    <string name="airnet_call_screen">Share screen</string>
+    <string name="airnet_call_quality">Quality</string>
+    <string name="airnet_call_encrypted">Direct call, end-to-end encrypted</string>
 </resources>

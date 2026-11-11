@@ -105,6 +105,8 @@ fun AirApp() {
                     AirNetwork.stop()
                     AirAccount.logout()
                 })
+                // AIR Chat: peer-to-peer calls (incoming and ongoing)
+                AirCallOverlay()
             }
         }
     }

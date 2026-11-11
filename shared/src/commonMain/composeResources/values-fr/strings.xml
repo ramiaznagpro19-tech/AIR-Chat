@@ -1306,4 +1306,18 @@
     <string name="airnet_back">Retour</string>
     <string name="airnet_encrypted">Chiffré de bout en bout</string>
     <string name="airnet_relays">Relais connectés : %1$d</string>
+    <string name="airnet_call_audio">Appel vocal</string>
+    <string name="airnet_call_video">Appel vidéo</string>
+    <string name="airnet_call_incoming">Appel entrant…</string>
+    <string name="airnet_call_calling">Appel en cours…</string>
+    <string name="airnet_call_connecting">Connexion…</string>
+    <string name="airnet_call_accept">Accepter</string>
+    <string name="airnet_call_decline">Refuser</string>
+    <string name="airnet_call_hangup">Raccrocher</string>
+    <string name="airnet_call_mic">Micro</string>
+    <string name="airnet_call_camera">Caméra</string>
+    <string name="airnet_call_flip">Changer de caméra</string>
+    <string name="airnet_call_screen">Partager l'écran</string>
+    <string name="airnet_call_quality">Qualité</string>
+    <string name="airnet_call_encrypted">Appel direct, chiffré de bout en bout</string>
 </resources>

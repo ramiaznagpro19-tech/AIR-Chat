@@ -187,13 +187,13 @@ private fun BackTopBar(navController: NavController, title: String, subtitle: St
 @Composable
 private fun AirConversationList(navController: NavController) {
     val conversations by AirNetwork.conversations.collectAsState()
-    val items by AirNetwork.items.collectAsState()
+    val allItems by AirNetwork.items.collectAsState()
     val online by AirNetwork.online.collectAsState()
     val readUpTo by AirNetwork.readUpTo.collectAsState()
     var showNewChat by remember { mutableStateOf(false) }
     var showNewGroup by remember { mutableStateOf(false) }
 
-    val messagesByConversation = items.values.filter { it.type == AirItem.MESSAGE }.groupBy { it.conversation }
+    val messagesByConversation = allItems.values.filter { it.type == AirItem.MESSAGE }.groupBy { it.conversation }
     val sorted = conversations.values.sortedByDescending { c ->
         messagesByConversation[c.id]?.maxOfOrNull { it.createdAt } ?: c.createdAt
     }
@@ -427,10 +427,10 @@ private fun NewGroupDialog(onDismiss: () -> Unit, onCreated: (AirConversation) -
 private fun AirChatScreen(navController: NavController, rawId: String) {
     val conversationId = decodeRoute(rawId)
     val conversations by AirNetwork.conversations.collectAsState()
-    val items by AirNetwork.items.collectAsState()
+    val allItems by AirNetwork.items.collectAsState()
     val online by AirNetwork.online.collectAsState()
     val conversation = conversations[conversationId] ?: return
-    val messages = items.values
+    val messages = allItems.values
         .filter { it.conversation == conversationId && it.type == AirItem.MESSAGE }
         .sortedByDescending { it.createdAt }
     var draft by remember { mutableStateOf("") }
@@ -446,6 +446,7 @@ private fun AirChatScreen(navController: NavController, rawId: String) {
     Scaffold(
         topBar = {
             BackTopBar(navController, AirNetwork.conversationTitle(conversation), subtitle) {
+                if (!conversation.isGroup) others.firstOrNull()?.let { CallButtons(it) }
                 IconButton(onClick = { navController.navigate("threads/${encodeRoute(conversationId)}") }) {
                     Icon(painterResource(Res.drawable.ic_forum_24dp), stringResource(Res.string.airnet_threads_forums))
                 }
@@ -566,11 +567,11 @@ private fun Composer(value: String, onValueChange: (String) -> Unit, onSend: () 
 @Composable
 private fun AirThreadsListScreen(navController: NavController, rawId: String) {
     val conversationId = decodeRoute(rawId)
-    val items by AirNetwork.items.collectAsState()
+    val allItems by AirNetwork.items.collectAsState()
     var tab by remember { mutableIntStateOf(0) }
     var composing by remember { mutableStateOf(false) }
     val type = if (tab == 0) AirItem.THREAD else AirItem.FORUM
-    val inConversation = items.values.filter { it.conversation == conversationId }
+    val inConversation = allItems.values.filter { it.conversation == conversationId }
     val replies = inConversation.filter { it.type == AirItem.REPLY }.groupBy { it.parent }
     val roots = inConversation.filter { it.type == type }.sortedByDescending { root ->
         maxOf(root.createdAt, replies[root.id]?.maxOfOrNull { it.createdAt } ?: 0L)
@@ -694,9 +695,9 @@ private fun PostCard(post: AirItem, replyCount: Int, onClick: () -> Unit) {
 @Composable
 private fun AirThreadDetailScreen(navController: NavController, rawId: String, itemId: String) {
     val conversationId = decodeRoute(rawId)
-    val items by AirNetwork.items.collectAsState()
-    val root = items[itemId]
-    val replies = items.values.filter { it.type == AirItem.REPLY && it.parent == itemId }.sortedBy { it.createdAt }
+    val allItems by AirNetwork.items.collectAsState()
+    val root = allItems[itemId]
+    val replies = allItems.values.filter { it.type == AirItem.REPLY && it.parent == itemId }.sortedBy { it.createdAt }
     var draft by remember { mutableStateOf("") }
 
     Scaffold(

@@ -11,6 +11,7 @@ import chat.stoat.e2ee.AirE2EE
 import chat.stoat.p2p.AirP2P
 import chat.stoat.air.AirAccount
 import chat.stoat.air.AirNetwork
+import chat.stoat.air.AirCall
 import co.touchlab.kermit.Logger
 import co.touchlab.kermit.Severity
 import coil3.ImageLoader
@@ -57,6 +58,7 @@ class StoatApplication : Application(), SingletonImageLoader.Factory {
         // AIR Chat: own accounts and peer-to-peer network
         AirAccount.install(this)
         AirNetwork.install(this)
+        AirCall.install(this)
 
         RealtimeConnectionMonitor(this).start()
 

@@ -303,7 +303,7 @@ object AirNetwork {
         return AirCrypto.hkdf(shared, "AIR Chat".toByteArray(), "AIR Chat signalling v1")
     }
 
-    private fun sendSignal(to: String, payload: JSONObject) {
+    internal fun sendSignal(to: String, payload: JSONObject) {
         val current = session ?: return
         scope.launch {
             try {
@@ -362,6 +362,7 @@ object AirNetwork {
                     "offer" -> onOffer(from, json.getString("sid"), json.getString("sdp"))
                     "answer" -> onAnswer(from, json.getString("sid"), json.getString("sdp"))
                     "invite" -> json.optJSONObject("conv")?.let { mergeConversation(from, it) }
+                    "call-offer", "call-answer", "call-end" -> AirCall.onSignal(from, json)
                 }
             } catch (e: Exception) {
                 Log.w(TAG, "Signal handling failed", e)
@@ -724,4 +725,10 @@ object AirNetwork {
             if (local) setLocalDescription(observer, description) else setRemoteDescription(observer, description)
         }
     }
+}
+
+/** Bridge used by [AirCall] to reach the encrypted signalling of [AirNetwork]. */
+internal object AirNetworkSignals {
+    fun newSessionId(): String = AirCrypto.hex(AirCrypto.randomBytes(8))
+    fun send(to: String, payload: JSONObject) = AirNetwork.sendSignal(to, payload)
 }
