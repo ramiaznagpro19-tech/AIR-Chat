@@ -81,7 +81,7 @@ fun LoginGreetingScreen(navController: NavController) {
             Image(
                 painter = painterResource(Res.drawable.stoat_logo_white),
                 colorFilter = ColorFilter.tint(LocalContentColor.current),
-                contentDescription = "Stoat",
+                contentDescription = "AIR Chat",
                 contentScale = ContentScale.Fit,
                 modifier = Modifier
                     .height(100.dp)

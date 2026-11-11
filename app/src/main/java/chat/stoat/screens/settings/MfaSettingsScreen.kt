@@ -228,8 +228,8 @@ class MfaSettingsScreenViewModel(val context: Application) : ViewModel() {
     }
 
     private fun otpauthUrl(secret: String, email: String?): String {
-        val label = Uri.encode("Stoat:${email ?: "account"}")
-        return "otpauth://totp/$label?secret=$secret&issuer=Stoat"
+        val label = Uri.encode("AIR Chat:${email ?: "account"}")
+        return "otpauth://totp/$label?secret=$secret&issuer=AIR%20Chat"
     }
 }
 

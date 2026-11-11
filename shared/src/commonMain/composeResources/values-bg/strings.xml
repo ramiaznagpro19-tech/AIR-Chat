@@ -12,7 +12,7 @@
     <string name="login_onboarding_heading">Намерете вашата общност, свържете се със света.</string>
     <string name="loading">Извличаме информация, моля изчакайте…</string>
     <string name="login_heading">Нека ви впишем</string>
-    <string name="login_onboarding_body">Revolt е един от най-добрите начини да поддържате връзка с вашите приятели и вашата общност, навсякъде и по всяко време.</string>
+    <string name="login_onboarding_body">AIR Chat е един от най-добрите начини да поддържате връзка с вашите приятели и вашата общност, навсякъде и по всяко време.</string>
     <string name="email">Имейл</string>
     <string name="password">Парола</string>
     <string name="login">Влез</string>
@@ -24,8 +24,8 @@
     <string name="password_manager_hint">Използвате управител на пароли?</string>
     <string name="password_forgot_heading">Забравена парола?</string>
     <string name="password_forgot_instructions">Въведете вашия имейл и ние ще ви изпратим инструкции как да възстановите паролата си.</string>
-    <string name="register_heading">Добре дошли в Revolt</string>
-    <string name="register_image_alt">Използвайте Revolt, за да разговаряте за различни неща.</string>
+    <string name="register_heading">Добре дошли в AIR Chat</string>
+    <string name="register_image_alt">Използвайте AIR Chat, за да разговаряте за различни неща.</string>
     <string name="register_instructions">Това е като място за висене, събиране и разговаряне. Най-хубавото е, че е в интернета.</string>
     <string name="register_form_heading">Нека да ви настроим.</string>
     <string name="register_data">Вашите лични данни са в безопасност при нас. Ние не ги продаваме и не ги използваме, за да ви показваме реклами.</string>
@@ -94,12 +94,12 @@
     <string name="oss_attribution">Приписване на OSS</string>
     <string name="oss_attribution_tap_to_view_license">Натиснете, за да видите лиценза</string>
     <string name="emoji_category_flags">Знамена</string>
-    <string name="about_full_name">Revolt на Android</string>
-    <string name="about_brought_to_you_by">Представяме ви с ❤️ от екипа на Revolt.</string>
+    <string name="about_full_name">AIR Chat на Android</string>
+    <string name="about_brought_to_you_by">Представяме ви с ❤️ от екипа на AIR Chat.</string>
     <string name="pick_emoji_alt">Изберете емотикона</string>
     <string name="attachment_preview_close">Затворете</string>
     <string name="attachment_preview_remove">Премахнете</string>
-    <string name="badge_team_member_alt">Член на екипа на Revolt</string>
+    <string name="badge_team_member_alt">Член на екипа на AIR Chat</string>
     <string name="emoji_category_smileys">Смайлици и емоции</string>
     <string name="emoji_category_people">Човек и тяло</string>
     <string name="emoji_category_animals">Животни и природа</string>
@@ -119,7 +119,7 @@
     <string name="friends_all">Всички</string>
     <string name="user_card_data_point_display_name">%1$d.Име</string>
     <string name="user_card_data_point_username">%1$d.Потребително име</string>
-    <string name="user_card_data_point_join_date">%1$d.На Revolt от</string>
+    <string name="user_card_data_point_join_date">%1$d.На AIR Chat от</string>
     <string name="user_card_data_point_photo">%1$d.Снимка</string>
     <string name="notification_channel_group_conversations">Разговори</string>
     <string name="main_tab_conversations">Разговори</string>

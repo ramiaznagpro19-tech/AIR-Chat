@@ -10,7 +10,7 @@
     <string name="signup">Registruotis</string>
     <string name="send_email">Siųsti el. laišką</string>
     <string name="password_forgot">Pamiršote slaptažodį?</string>
-    <string name="register_heading">Sveiki atvykę į Revolt</string>
+    <string name="register_heading">Sveiki atvykę į AIR Chat</string>
     <string name="register_email">El. paštas</string>
     <string name="onboarding_welcome">Sveiki!</string>
     <string name="next">Pirmyn →</string>
@@ -27,7 +27,7 @@
     <string name="no_active_channel_body">Norėdami pradėti, pasirinkite serverį iš kairės. Jei jaučiatės drąsiai, galite sukurti naują serverį.</string>
     <string name="could_not_log_in_heading">Kilo problema prisijungiant</string>
     <string name="lets_go">Eikime</string>
-    <string name="login_onboarding_body">„Revolt“ – tai vienas geriausių būdų palaikyti ryšį su draugais ir bendruomene bet kur ir bet kada.</string>
+    <string name="login_onboarding_body">„AIR Chat“ – tai vienas geriausių būdų palaikyti ryšį su draugais ir bendruomene bet kur ir bet kada.</string>
     <string name="mfa_totp_header">Įvesti šešiaženklį kodą</string>
     <string name="mfa_password_header">Įveskite slaptažodį</string>
     <string name="badge_masquerade_alt">Iš susieto kanalo</string>
@@ -35,7 +35,7 @@
     <string name="too_many_replies">Vienu metu galite atsakyti tik į %1$d pranešimus.</string>
     <string name="login_onboarding_heading">Raskite savo bendruomenę, susisiekite su pasauliu.</string>
     <string name="home_join_jenvolt_description">Jenvolt yra kūrėjų valdoma erdvė, skirta visiems Android programėlių ir daugiau. Parama ir atsiliepimai pateikiami čia. Galbūt galėsite išbandyti naujas funkcijas! 👀</string>
-    <string name="badge_team_member_alt">Revolt komandos narys</string>
+    <string name="badge_team_member_alt">AIR Chat komandos narys</string>
     <string name="friends_deny_all_incoming">Išvalyti visus gaunamus prašymus</string>
     <string name="no_channels_heading">Šiek tiek nepatogu.</string>
     <string name="overview_screen_settings">Atidaryti nustatymus</string>
@@ -54,7 +54,7 @@
     <string name="resend_verification">Išsiųsti patvirtinimo el. laišką iš naujo</string>
     <string name="password_manager_hint">Naudojate slaptažodžių tvarkytuvę?</string>
     <string name="password_forgot_instructions">Įveskite savo el. paštą ir mes atsiųsime instrukcijas, kaip iš naujo nustatyti slaptažodį.</string>
-    <string name="register_image_alt">Naudokite „Revolt“ pokalbiams apie dalykus.</string>
+    <string name="register_image_alt">Naudokite „AIR Chat“ pokalbiams apie dalykus.</string>
     <string name="register_instructions">Tai tarsi vieta, kur galima pabūti kartu, susitikti ir pasikalbėti apie įvairius dalykus. Geriausia, kad tai vyksta internete.</string>
     <string name="register_form_heading">Nustatykime jus.</string>
     <string name="register_data">Jūsų duomenys pas mus yra saugūs. Mes jų neparduodame ir nenaudojame, kad rodytume jums reklamas.</string>
@@ -78,8 +78,8 @@
     <string name="mfa_recovery_code">Kodas</string>
     <string name="mfa_password_lead">Norėdami tęsti, įveskite slaptažodį.</string>
     <string name="about">Apie</string>
-    <string name="about_full_name">Revolt ant Android</string>
-    <string name="about_brought_to_you_by">Su ❤️ pristato „Revolt“ komanda.</string>
+    <string name="about_full_name">AIR Chat ant Android</string>
+    <string name="about_brought_to_you_by">Su ❤️ pristato „AIR Chat“ komanda.</string>
     <string name="oss_attribution">OSS priskyrimas</string>
     <string name="comingsoon_toast">Atsiprašome, ši funkcija dar neparengta.</string>
     <string name="typing_one">%1$s rašo…</string>
@@ -115,12 +115,12 @@
     <string name="overview_screen_share_profile">Dalytis profiliu</string>
     <string name="overview_screen_share_profile_description">Pažvelkite į savo naudotojo kortelę ir gaukite specialią nuorodą, kuria galėsite dalytis</string>
     <string name="overview_screen_changelog">Pakeitimų sąrašas</string>
-    <string name="overview_screen_changelog_description">Revolt niekada nemiega, pažiūrėkite, kas buvo kuriama</string>
+    <string name="overview_screen_changelog_description">AIR Chat niekada nemiega, pažiūrėkite, kas buvo kuriama</string>
     <string name="user_card_tap_to_copy">Bakstelėkite , kad nukopijuotumėte</string>
     <string name="user_card_error_sharing">Dalijantis naudotojo kortele įvyko klaida.</string>
     <string name="user_card_data_point_display_name">%1$d.Vardas</string>
     <string name="user_card_data_point_username">%1$d.Vartotojo vardas</string>
-    <string name="user_card_data_point_join_date">%1$d.Ant Revolt nuo</string>
+    <string name="user_card_data_point_join_date">%1$d.Ant AIR Chat nuo</string>
     <string name="user_card_data_point_qrcode">%1$d.QR kodas</string>
     <string name="user_card_data_point_photo">%1$d.Nuotrauka</string>
     <string name="friends">Draugai</string>
@@ -171,7 +171,7 @@
     <string name="report_reason_user_spam_abuse">Šlamštas ar panašus piktnaudžiavimas platforma</string>
     <string name="user_info_sheet_user_not_found">Nepavyksta surasti šio naudotojo</string>
     <string name="report_server">Dėkojame, kad skyrėte laiko pranešti apie šį serverį. Jūsų pranešimas nebus perduotas serverio moderatoriams.</string>
-    <string name="report_submit_thanks">Dėkojame, kad padedate užtikrinti Revolt saugumą. Mes kuo greičiau peržiūrėsime jūsų pranešimą.</string>
+    <string name="report_submit_thanks">Dėkojame, kad padedate užtikrinti AIR Chat saugumą. Mes kuo greičiau peržiūrėsime jūsų pranešimą.</string>
     <string name="member_context_sheet_open">Atidaryti nario nustatymus</string>
     <string name="report_message">Dėkojame, kad skyrėte laiko pranešti apie šia žinutę. Jūsų pranešimas nebus perduotas nei žinutę siuntusiam naudotojui, nei serverio moderatoriams.</string>
     <string name="user_info_sheet_webhook_body">Webhooks yra automatinės transliacijos iš kitų paslaugų internete. Jos negali atsakyti į pokalbį, bet vis tiek galite matyti, ką jos nori pasakyti.</string>
@@ -248,7 +248,7 @@
     <string name="status_dnd_explainer">Negausite jokių pranešimų, įskaitant žinutes ir @ paminėjimus.</string>
     <string name="status_offline">Atsijungę</string>
     <string name="status_invisible">Nematomi</string>
-    <string name="status_invisible_explainer">Galėsite naudotis Revolt kaip įprastai, tačiau kitiems žmonėms atrodysite neprisijungę.</string>
+    <string name="status_invisible_explainer">Galėsite naudotis AIR Chat kaip įprastai, tačiau kitiems žmonėms atrodysite neprisijungę.</string>
     <string name="no_connection">Nėra ryšio</string>
     <string name="tap_to_retry">Bakstelėkite, kad bandytumėte dar kartą</string>
     <string name="settings">Nustatymai</string>
@@ -333,7 +333,7 @@
     <string name="user_badge_platform_moderation">Platformos moderavimas</string>
     <string name="user_badge_active_supporter">Aktyvus rėmėjas</string>
     <string name="user_badge_early_adopter">Ankstyvasis naudotojas</string>
-    <string name="discover">Atraskite Revolt</string>
+    <string name="discover">Atraskite AIR Chat</string>
     <string name="report">Pranešti</string>
     <string name="report_cancel">Atšaukti</string>
     <string name="report_message_heading">Pasakykite, kas šiame pranešime yra negerai</string>
@@ -456,7 +456,7 @@
     <string name="spark_notifications_rationale_cta">Įjungti pranešimus</string>
     <string name="spark_notifications_rationale_dismiss">Ne dabar</string>
     <string name="spark_keyboard_shortcuts">Naudojate klaviatūrą?</string>
-    <string name="spark_keyboard_shortcuts_description">Revolt turi sparčiuosius klavišus! Paspauskite %1$s, kad juos pamatytumėte.</string>
+    <string name="spark_keyboard_shortcuts_description">AIR Chat turi sparčiuosius klavišus! Paspauskite %1$s, kad juos pamatytumėte.</string>
     <string name="spark_keyboard_shortcuts_cta">Atidaryti sparčiuosius klavišus</string>
     <string name="spark_keyboard_shortcuts_dismiss">Gerai</string>
     <string name="notice_platform_mod_dm_acknowledge">Peržiūrėti</string>
@@ -502,7 +502,7 @@
     <string name="settings_chat_interactive_embeds_youtube">YouTube</string>
     <string name="settings_chat_interactive_embeds_apple_music">Apple Music</string>
     <string name="settings_feedback">Atsiliepimai</string>
-    <string name="settings_feedback_description">Prisijunkite prie Revolt serverio ir pateikite atsiliepimų ar pasiūlymų bei praneškite apie klaidas.</string>
+    <string name="settings_feedback_description">Prisijunkite prie AIR Chat serverio ir pateikite atsiliepimų ar pasiūlymų bei praneškite apie klaidas.</string>
     <string name="settings_language">Kalba</string>
     <string name="settings_language_auto">Sistemos numatyta</string>
     <string name="channel_settings">Kanalo nustatymai</string>
@@ -545,10 +545,10 @@
     <string name="channel_settings_delete_confirm_description">Visi šio kanalo pranešimai ir nustatymai dings visiems laikams (ilgam!)</string>
     <string name="channel_settings_delete_confirm_yes">Ištrinti</string>
     <string name="channel_settings_delete_confirm_no">Laikyti</string>
-    <string name="share_target_heading">Dalytis į Revolt</string>
-    <string name="share_target_login_first">Prieš dalydamiesi su Revolt, prisijunkite.</string>
+    <string name="share_target_heading">Dalytis į AIR Chat</string>
+    <string name="share_target_login_first">Prieš dalydamiesi su AIR Chat, prisijunkite.</string>
     <string name="share_target_invalid_intent">Tai nėra galiojantis dalinimo ketinimas.</string>
-    <string name="share_target_attachment_too_large">Šis priedas yra per didelis Revolt (ne daugiau kaip $1$s).</string>
+    <string name="share_target_attachment_too_large">Šis priedas yra per didelis AIR Chat (ne daugiau kaip $1$s).</string>
     <string name="share_target_search_channels">Ieškoti kanalų</string>
     <string name="share_target_select_channel">m pasirinkite kanalą, į kurį norite bendrinti.</string>
     <string name="notification_channel_group_conversations">Pokalbiai</string>

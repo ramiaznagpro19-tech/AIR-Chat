@@ -120,7 +120,7 @@ private fun LeadPart(windowSizeClass: WindowSizeClass) {
         )
         Spacer(modifier = Modifier.height(16.dp))
         Text(
-            "Stoat is the chat app that’s truly built with you in mind.", // FIXME hardcoded string
+            "AIR Chat is the chat app that’s truly built with you in mind.", // FIXME hardcoded string
             style = MaterialTheme.typography.bodyLarge,
             fontSize = 18.sp,
             textAlign = TextAlign.Center

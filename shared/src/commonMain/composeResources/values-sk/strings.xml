@@ -8,7 +8,7 @@
     <string name="loading">Ziskávame info, Počkajte…</string>
     <string name="community_guidelines">Komunitné Pravidlá</string>
     <string name="login_onboarding_heading">Najdi svoju komunitu, pripoj sa zo svetom.</string>
-    <string name="login_onboarding_body">Revolt je jedna z najlepších spôsobov ako sa pripojiť zo kamarátmi a komunitov, kdekoľvek, kedykoľvek.</string>
+    <string name="login_onboarding_body">AIR Chat je jedna z najlepších spôsobov ako sa pripojiť zo kamarátmi a komunitov, kdekoľvek, kedykoľvek.</string>
     <string name="password">Heslo</string>
     <string name="hide_password">Schovať heslo</string>
     <string name="show_password">Ukázať heslo</string>
@@ -23,7 +23,7 @@
     <string name="password_forgot">Zabudli ste heslo?</string>
     <string name="resend_verification">Preposlať verifikačný email</string>
     <string name="password_forgot_instructions">Zadajte svoj email a pošleme vám inštrukcie ako si resetovať heslo.</string>
-    <string name="register_heading">Vitajte v Revolte</string>
+    <string name="register_heading">Vitajte v AIR Chate</string>
     <string name="register_email">Email</string>
     <string name="register_email_verification_hint">Pošleme vám verifikačný email aby sme potrvdili váš účet.</string>
     <string name="register_password">Heslo</string>
@@ -41,7 +41,7 @@
     <string name="mfa_recovery_code">Kód</string>
     <string name="mfa_password_header">Vložte svoje heslo</string>
     <string name="mfa_password_lead">Vložte svoje heslo aby ste pokračovali.</string>
-    <string name="about_brought_to_you_by">Prinesené k vám z láskou od tímu Revolt.</string>
+    <string name="about_brought_to_you_by">Prinesené k vám z láskou od tímu AIR Chat.</string>
     <string name="comingsoon_toast">Prepáčte, táto funkcia ešte není dostupná.</string>
     <string name="send_alt">Poslať</string>
     <string name="pick_emoji_alt">Vybrať emoji</string>
@@ -70,11 +70,11 @@
     <string name="overview_screen_settings_description">Zmenťe svoj vzhlad, spravujte svoj účet a viac</string>
     <string name="overview_screen_share_profile">Zdielať profil</string>
     <string name="overview_screen_changelog">List zmien</string>
-    <string name="overview_screen_changelog_description">Revolt nikdy nespí, pozrite sa čo sa na čom sa pracuje</string>
+    <string name="overview_screen_changelog_description">AIR Chat nikdy nespí, pozrite sa čo sa na čom sa pracuje</string>
     <string name="user_card_tap_to_copy">Kliknite aby ste skopírovali</string>
     <string name="user_card_error_sharing">Vyskitol sa problém pri zdieľaní vášho profilu.</string>
     <string name="user_card_data_point_display_name">%1$d meno</string>
-    <string name="user_card_data_point_join_date">%1$d je na Revolte od</string>
+    <string name="user_card_data_point_join_date">%1$d je na AIR Chate od</string>
     <string name="user_card_data_point_photo">%1$d Fotka</string>
     <string name="friends">Priatelia</string>
     <string name="friends_incoming_requests">Prichádzajúce žiadosti o priateľstvo</string>
@@ -153,7 +153,7 @@
     <string name="status_dnd_explainer">Nedostane žiadne upozornenia, ani správy alebo @označenia.</string>
     <string name="status_offline">Offline</string>
     <string name="status_invisible">neviditeľný</string>
-    <string name="status_invisible_explainer">Budete moct používať revolt ako normálne, ale ostatný vás neuvidia online.</string>
+    <string name="status_invisible_explainer">Budete moct používať AIR Chat ako normálne, ale ostatný vás neuvidia online.</string>
     <string name="status_text">Statusový text</string>
     <string name="status_text_placeholder">Povedzte svetu čo práve robíte</string>
     <string name="status_text_error_too_long">Statusový text je príliš dlhý. Posnažte sa to nechať pod %1$d charakterov.</string>
@@ -206,7 +206,7 @@
     <string name="user_info_sheet_open">Otvoriť použivaťelské info</string>
     <string name="back">späť</string>
     <string name="signup">Vytvoriť účet</string>
-    <string name="about_full_name">Revolt na android</string>
+    <string name="about_full_name">AIR Chat na android</string>
     <string name="user_card_data_point_username">%1$d Použivateľské meno</string>
     <string name="share">zdielať</string>
     <string name="email">Email</string>
@@ -229,7 +229,7 @@
     <string name="status_focus_explainer">Nebudete dostávať žiadne notifikácie pre správy, ale dostanete notifikácie pre @označenia.</string>
     <string name="emote_info_from_unicode">Zakládne emoji ktoré môžete použiť kdekoľvek</string>
     <string name="channel_context_sheet_actions_copy_id_copied">ID bolo skopírované do schránky</string>
-    <string name="badge_team_member_alt">člen tímu Revolt</string>
+    <string name="badge_team_member_alt">člen tímu AIR Chat</string>
     <string name="user_card_data_point_qrcode">%1$d QR Kód</string>
     <string name="server_context_sheet_actions_leave_confirm_eyebrow">Dokým nedostanete pozvánku naspäť, nebudete sa môct zasa pripojiť.</string>
     <string name="server_context_sheet_moderators_early_disclaimer_body">Staĺe pracujeme na prinášaní možností serveru na našu Android aplikáciu. Prosím použite web aplikáciu aby ste spravovali svoj server pre teraz.</string>

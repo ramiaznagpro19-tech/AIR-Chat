@@ -27,8 +27,8 @@
     <string name="send_email">Epistulam electronicam mitte</string>
     <string name="password_manager_hint">Utere administratore tesserae?</string>
     <string name="password_forgot_instructions">Inscribe tuam epistulam electronicam et tibi mittemus praecepta quomodo tesseram tuam restituas.</string>
-    <string name="register_heading">Gratus ad Revolt</string>
-    <string name="register_image_alt">Utere Revolt ad colloquendum de rebus.</string>
+    <string name="register_heading">Gratus ad AIR Chat</string>
+    <string name="register_image_alt">Utere AIR Chat ad colloquendum de rebus.</string>
     <string name="register_form_heading">Lets 'adepto vos coepi.</string>
     <string name="register_data">Tua notitia tuta nobiscum est. Non vendimus, nec utimur ut promotiones tibi exhibeamus.</string>
     <string name="register_email">Einscriptio</string>
@@ -54,7 +54,7 @@
     <string name="mfa_password_header">Inscribe tuam tesserae</string>
     <string name="mfa_password_lead">Inscribe tesseram tuam ut pergat.</string>
     <string name="about">De</string>
-    <string name="about_full_name">Revolt in Android</string>
+    <string name="about_full_name">AIR Chat in Android</string>
     <string name="oss_attribution">Attributio OSS</string>
     <string name="oss_attribution_tap_to_view_license">Tange ad licentiam spectandam</string>
     <string name="comingsoon_toast">Ignosce, haec facultas nondum parata est.</string>
@@ -81,7 +81,7 @@
     <string name="emoji_category_flags">Vexilla</string>
     <string name="badge_bot_alt">Automaton</string>
     <string name="badge_platform_moderation_alt">Moderatio platformae</string>
-    <string name="badge_team_member_alt">Membrum turmā Revolt</string>
+    <string name="badge_team_member_alt">Membrum turmā AIR Chat</string>
     <string name="unknown">Nescitum</string>
     <string name="menu">Index</string>
     <string name="logout">Exitus</string>
@@ -92,11 +92,11 @@
     <string name="overview_screen_settings_description">Mutare vultum tuum, administrare rationem tuam, et plura</string>
     <string name="overview_screen_share_profile">Communica Profilum</string>
     <string name="overview_screen_changelog">Index Mutationum</string>
-    <string name="overview_screen_changelog_description">Revolt numquam dormit, specta ut videas quid in operibus sit</string>
+    <string name="overview_screen_changelog_description">AIR Chat numquam dormit, specta ut videas quid in operibus sit</string>
     <string name="user_card_tap_to_copy">Tange ut copiares</string>
     <string name="user_card_data_point_display_name">%1$d.Nomen</string>
     <string name="user_card_data_point_username">%1$d.Nomen usoris</string>
-    <string name="user_card_data_point_join_date">In Revolt ab %1$d</string>
+    <string name="user_card_data_point_join_date">In AIR Chat ab %1$d</string>
     <string name="user_card_data_point_qrcode">%1$d.Codex QR</string>
     <string name="user_card_data_point_photo">%1$d.Imago</string>
     <string name="friends">Amici</string>
@@ -174,13 +174,13 @@
     <string name="system_message_user_kicked_alt">Usor expulsum est</string>
     <string name="system_message_user_kicked">%1$s expulsum est</string>
     <string name="lets_go">Eamus</string>
-    <string name="login_onboarding_body">Revolt est una ex optimis viis ad coniunctionem cum amicis et communitate ubique et semper servandam.</string>
+    <string name="login_onboarding_body">AIR Chat est una ex optimis viis ad coniunctionem cum amicis et communitate ubique et semper servandam.</string>
     <string name="start_of_conversation">Hic est initium colloquii tui</string>
     <string name="message_field_decoration_trusted_moderation_bot">Verificatus moderatoris machina</string>
     <string name="system_message_channel_description_changed">%1$s descriptionem canalis mutavit</string>
     <string name="system_message_user_removed">%1$s %2$s amovit</string>
     <string name="hide_password">Celare tessera</string>
-    <string name="about_brought_to_you_by">Ad te allatum est cum ❤️ ab turma Revolt.</string>
+    <string name="about_brought_to_you_by">Ad te allatum est cum ❤️ ab turma AIR Chat.</string>
     <string name="channel_age_gate_dob_proceed">Procedere</string>
     <string name="message_field_denied_platform_moderation">Hoc est canalis fiducialis pro nuntiis ab turma moderationis nostrae. Nuntios hic mittere non potes.</string>
     <string name="resend">Mitte iterum</string>
@@ -216,7 +216,7 @@
     <string name="status_dnd_explainer">Nullas notificationes accipies, etiam nuntios et @nominibus.</string>
     <string name="status_offline">Extra linea</string>
     <string name="status_invisible">Invisibilis</string>
-    <string name="status_invisible_explainer">Revolt uti poteris ut solebas, sed aliis hominibus non apparebis ut in linea.</string>
+    <string name="status_invisible_explainer">AIR Chat uti poteris ut solebas, sed aliis hominibus non apparebis ut in linea.</string>
     <string name="status_text_none">Quid agitur?</string>
     <string name="status_text">Textus status</string>
     <string name="status_text_explainer">Textus status tuus omnibus visibilis erit. Fac eum brevem et suavis.</string>
@@ -345,7 +345,7 @@
     <string name="add_server_sheet_step_1c_name_placeholder">Servus Meus</string>
     <string name="add_server_sheet_step_1c_error">Error accidit dum server tuus creabatur. Quaeso postea iterum tenta.</string>
     <string name="add_server_sheet_step_1c_create">Crea</string>
-    <string name="discover">Revolt Invenire</string>
+    <string name="discover">AIR Chat Invenire</string>
     <string name="report">Reffere</string>
     <string name="report_cancel">Cancellare</string>
     <string name="report_message_heading">Dic nobis quid sit mali cum hoc nuntius</string>
@@ -378,7 +378,7 @@
     <string name="settings_appearance_theme_m3dynamic_unsupported_toast">Material You (non suffragatum) in hac machina non praesto est.</string>
     <string name="file_picker_chip_camera_none_installed">Nulla applicatio camerae installata est</string>
     <string name="corner_radius_picker_circular">Circularis</string>
-    <string name="spark_early_access_description_2">Cum hoc sit accessus praecox, res fortasse nondum perfectae sint. Forsitan insectum, casum, aut singulare vitium occurras. Sententiae tuae nobis adiuvant ut angustiis levandis et Revolt meliorem reddendis.</string>
+    <string name="spark_early_access_description_2">Cum hoc sit accessus praecox, res fortasse nondum perfectae sint. Forsitan insectum, casum, aut singulare vitium occurras. Sententiae tuae nobis adiuvant ut angustiis levandis et AIR Chat meliorem reddendis.</string>
     <string name="emoji_picker_skin_tone_fitzpatrick_1_2">Color cutis levis</string>
     <string name="spark_early_access_description_1">Es unus ex primis qui novum app Android nostrum temptent. Laetissimi sumus te hic habere!</string>
     <string name="share_target_select_channel">Quaeso selige canalem ad quem communicare.</string>
@@ -406,7 +406,7 @@
     <string name="report_submit">Submitte</string>
     <string name="report_submitting">Relationem transmittens…</string>
     <string name="report_submit_success">Relatum est</string>
-    <string name="report_submit_thanks">Gratias tibi agimus quod Revolt tutam servare adiuvisti. Relationem tuam quam primum recognoscemus.</string>
+    <string name="report_submit_thanks">Gratias tibi agimus quod AIR Chat tutam servare adiuvisti. Relationem tuam quam primum recognoscemus.</string>
     <string name="report_submit_error_header">Mendum</string>
     <string name="report_submit_error">Mendum accidit dum relationem tuam submittebas. Quaeso postea iterum tenta.</string>
     <string name="report_submit_close">Claudere</string>
@@ -475,7 +475,7 @@
     <string name="spark_notifications_rationale_cta">Notificatios activare</string>
     <string name="spark_notifications_rationale_dismiss">Non nunc</string>
     <string name="spark_keyboard_shortcuts">Utendo clavario?</string>
-    <string name="spark_keyboard_shortcuts_description">Revolt brevia claviaturae habet! Preme %1$s ut ea videas.</string>
+    <string name="spark_keyboard_shortcuts_description">AIR Chat brevia claviaturae habet! Preme %1$s ut ea videas.</string>
     <string name="spark_keyboard_shortcuts_cta">Aperi brevia</string>
     <string name="spark_keyboard_shortcuts_dismiss">Bene</string>
     <string name="spark_early_access">Salve ad Accessum Praecox! 🚀</string>
@@ -486,7 +486,7 @@
     <string name="spark_swipe_to_reply_cta">Intelligo</string>
     <string name="spark_swipe_to_reply_customise">Muta Responsum Velocem</string>
     <string name="hint_provide_feedback">Amamus opiniones!</string>
-    <string name="hint_provide_feedback_description">Si habes ullas opiniones, suggestiones, vel nuntiationes errorum, quaeso nos certiores fac. Semper studemus Revolt meliorem reddere.</string>
+    <string name="hint_provide_feedback_description">Si habes ullas opiniones, suggestiones, vel nuntiationes errorum, quaeso nos certiores fac. Semper studemus AIR Chat meliorem reddere.</string>
     <string name="hint_provide_feedback_cta">Aestima in Google Play</string>
     <string name="hint_provide_feedback_join_server">Adiunge servo probatorum</string>
     <string name="hint_provide_feedback_dismiss">Factum</string>
@@ -554,10 +554,10 @@
     <string name="settings_chat_interactive_embeds_youtube">YouTube</string>
     <string name="settings_chat_interactive_embeds_apple_music">Apple Music</string>
     <string name="settings_chat_hint_poorly_formed_settings_keys">Indicium</string>
-    <string name="settings_chat_hint_poorly_formed_settings_keys_description">Quaedae ex configurationibus tuis Revolt corruptae sunt. Hoc forte evenit propter usum clientium tertiae partis. Configurationes affectae sunt:</string>
+    <string name="settings_chat_hint_poorly_formed_settings_keys_description">Quaedae ex configurationibus tuis AIR Chat corruptae sunt. Hoc forte evenit propter usum clientium tertiae partis. Configurationes affectae sunt:</string>
     <string name="settings_chat_hint_poorly_formed_settings_keys_key_notifications">Notificationes</string>
     <string name="settings_chat_hint_poorly_formed_settings_keys_key_ordering">Ordo Servientis</string>
-    <string name="settings_chat_hint_poorly_formed_settings_keys_key_android">Revolt pro Android</string>
+    <string name="settings_chat_hint_poorly_formed_settings_keys_key_android">AIR Chat pro Android</string>
     <string name="settings_chat_hint_poorly_formed_settings_keys_key_unknown">%1$s (ignotum)</string>
     <string name="settings_chat_hint_poorly_formed_settings_keys_reset">Restituere configurationes %1$s</string>
     <string name="settings_feedback">Sententia</string>
@@ -587,10 +587,10 @@
     <string name="channel_settings_delete_confirm_description">Omnia nuntia et configurationes huius canalem in aeternum abibunt (longum tempus!)</string>
     <string name="channel_settings_delete_confirm_yes">Delere</string>
     <string name="channel_settings_delete_confirm_no">Servare</string>
-    <string name="share_target_heading">Communica ad Revolt</string>
-    <string name="share_target_login_first">Quaeso adscribe antequam communicare ad Revolt.</string>
+    <string name="share_target_heading">Communica ad AIR Chat</string>
+    <string name="share_target_login_first">Quaeso adscribe antequam communicare ad AIR Chat.</string>
     <string name="share_target_invalid_intent">Haec intentio communicandi non est valida.</string>
-    <string name="share_target_attachment_too_large">Haec appensio nimis magna est pro Revolt (max. $1$s).</string>
+    <string name="share_target_attachment_too_large">Haec appensio nimis magna est pro AIR Chat (max. $1$s).</string>
     <string name="share_target_search_channels">Quaerere canales</string>
     <string name="notification_channel_group_conversations">Colloquia</string>
     <string name="notification_channel_group_social">Amici et Socialis</string>
@@ -601,6 +601,6 @@
     <string name="keyboard_shortcut_messaging_send_message">Mitte Nuntium</string>
     <string name="notice_platform_mod_dm_description">Acceptisti notitiam magni momenti de ratione tua a turma moderationis nostra. Quaeso diligenter lege.</string>
     <string name="settings_sessions_this_device_unavailable">Sessio huius machinae non praesto est. Quaeso iterum adde ut sessionem tuam praesentem videas.</string>
-    <string name="settings_feedback_description">Iunge servientem Revolt ut responsionem vel suggestionem det et vitia renuntiet.</string>
+    <string name="settings_feedback_description">Iunge servientem AIR Chat ut responsionem vel suggestionem det et vitia renuntiet.</string>
     <string name="settings_chat_interactive_embeds_description">Insertiones Interactivae tibi permittunt cum quibusdam generibus nexuum directe in sermone interagere. Exempli gratia, potes spectare videos ex YouTube aut praevisum habere albumorum e Apple Music.</string>
 </resources>

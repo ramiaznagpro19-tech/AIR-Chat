@@ -17,8 +17,8 @@
     <string name="login_heading">Vamos iniciar a tua sessão</string>
     <string name="password_forgot">Esqueceste-te da tua palavra-passe?</string>
     <string name="password_manager_hint">A utilizar um gestor de palavras-passe?</string>
-    <string name="register_heading">Bem-vindo(a) ao Stoat</string>
-    <string name="register_image_alt">Usa o Stoat para falares sobre coisas.</string>
+    <string name="register_heading">Bem-vindo(a) ao AIR Chat</string>
+    <string name="register_image_alt">Usa o AIR Chat para falares sobre coisas.</string>
     <string name="register_form_heading">Vamos preparar você.</string>
     <string name="register_data">Os teus dados estão seguros connosco. Nós não os vendemos nem os usamos para te mostrar anúncios.</string>
     <string name="register_email">E-mail</string>
@@ -153,7 +153,7 @@
     <string name="back">← Voltar</string>
     <string name="loading">A obter informações, aguenta só um instante…</string>
     <string name="login_onboarding_heading">Encontre sua comunidade, conecte-se com o mundo.</string>
-    <string name="login_onboarding_body">O Stoat é uma das melhores formas de te manteres em contacto com os teus amigos e comunidade, em qualquer lugar, a qualquer hora.</string>
+    <string name="login_onboarding_body">O AIR Chat é uma das melhores formas de te manteres em contacto com os teus amigos e comunidade, em qualquer lugar, a qualquer hora.</string>
     <string name="resend_verification">Reenviar e-mail de verificação</string>
     <string name="password_forgot_heading">Esqueceste-te da tua palavra-passe?</string>
     <string name="password_forgot_instructions">Insere o teu e-mail e nós enviamos-te as instruções para redefinires a tua palavra-passe.</string>
@@ -193,7 +193,7 @@
     <string name="report_reason_content_malware">Malware (vírus) ou phishing (burla)</string>
     <string name="report_reason_content_harassment">Assédio ou ciberbullying</string>
     <string name="report_reason_additional_hint">Qualquer informação adicional que possa auxiliar a nossa investigação. Opcional.</string>
-    <string name="report_submit_thanks">Obrigado por nos ajudares a manter o Revolt seguro. Iremos rever a tua denúncia assim que possível.</string>
+    <string name="report_submit_thanks">Obrigado por nos ajudares a manter o AIR Chat seguro. Iremos rever a tua denúncia assim que possível.</string>
     <string name="report_submit_error">Ocorreu um erro enquanto se tentava submeter a tua denúncia. Por favor, tenta novamente mais tard.</string>
     <string name="invite_already_member">Já és membro deste servidor.</string>
     <string name="invite_error_invalid_invite">Não foi possível encontrar nenhum convite com o código fornecido.</string>
@@ -206,8 +206,8 @@
     <string name="settings_appearance_theme_m3dynamic_unsupported_toast">O Material You não é suportado por este dispositivo.</string>
     <string name="onboarding_changeable">Mas se mudares de ideias, podes sempre mudá-lo nas tuas Definições de Utilizador.</string>
     <string name="direct_messages">Mensagens diretas</string>
-    <string name="about_full_name">Stoat no Android</string>
-    <string name="about_brought_to_you_by">Trazido a ti com ❤️ pela equipa do Stoat.</string>
+    <string name="about_full_name">AIR Chat no Android</string>
+    <string name="about_brought_to_you_by">Trazido a ti com ❤️ pela equipa do AIR Chat.</string>
     <string name="server_flag_official">Servidor Oficial</string>
     <string name="report_reason_content_raid">Raid ou ataque de spam</string>
     <string name="settings_chat_quick_reply_double_tap">Duas vezes para responder</string>
@@ -215,8 +215,8 @@
     <string name="settings_chat_quick_reply_none">Pressione e segure para responder</string>
     <string name="settings_chat_quick_reply">Resposta Rápida</string>
     <string name="settings_chat">Bater papo</string>
-    <string name="share_target_login_first">Faça login antes de compartilhar no Revolt.</string>
-    <string name="share_target_heading">Compartilhar na Revolt</string>
+    <string name="share_target_login_first">Faça login antes de compartilhar no AIR Chat.</string>
+    <string name="share_target_heading">Compartilhar na AIR Chat</string>
     <string name="channel_settings_delete_confirm_no">Manter</string>
     <string name="channel_settings_delete_confirm_yes">Excluir</string>
     <string name="channel_settings_delete_confirm">Tem certeza de que deseja excluir este canal?</string>
@@ -248,7 +248,7 @@
     <string name="report_message_heading">Diganos o que há de errado com esta mensagem</string>
     <string name="report_reason_content_illegal_pornography">Vingança ou pornografia de menores</string>
     <string name="report_reason_content_scams_fraud">Golpes ou fraude</string>
-    <string name="share_target_attachment_too_large">Este arquivo é muito grande para o Revolt (máx. $1$s).</string>
+    <string name="share_target_attachment_too_large">Este arquivo é muito grande para o AIR Chat (máx. $1$s).</string>
     <string name="share_target_invalid_intent">Esta não é uma intenção de compartilhamento válida.</string>
     <string name="channel_settings_delete_confirm_description">Todas as mensagens e configurações deste canal desaparecerão para sempre (muito tempo!)</string>
     <string name="emoji_picker_skin_tone_fitzpatrick_6">Tom de pele escuro</string>
@@ -274,7 +274,7 @@
     <string name="system_message_ownership_changed">%1$s transferiu a propriedade para %2$s</string>
     <string name="system_message_channel_renamed">%1$s renomeou o canal para %2$s</string>
     <string name="server_context_sheet_actions_leave_silently">Sair silenciosamente</string>
-    <string name="discover">Descubra a revolt</string>
+    <string name="discover">Descubra a AIR Chat</string>
     <string name="settings_appearance_colour_overrides_scrim">Treino</string>
     <string name="pick_emoji_alt">Escolha emoji</string>
     <string name="emoji_category_smileys">Emoticons e Emoções</string>
@@ -287,7 +287,7 @@
     <string name="emoji_category_symbols">Símbolos</string>
     <string name="emoji_category_flags">Bandeiras</string>
     <string name="badge_platform_moderation_alt">Moderação da plataforma</string>
-    <string name="badge_team_member_alt">Membro da equipe Stoat</string>
+    <string name="badge_team_member_alt">Membro da equipe AIR Chat</string>
     <string name="home_join_jenvolt">Junte-se à Jenvolt</string>
     <string name="friends">Amigos</string>
     <string name="friends_incoming_requests">Solicitações recebidas</string>
@@ -344,7 +344,7 @@
     <string name="system_message_user_removed">%1$s removido %2$s</string>
     <string name="system_message_user_added">%1$s adicionou %2$s</string>
     <string name="system_message_user_banned">%1$s foi banido</string>
-    <string name="status_invisible_explainer">Você poderá usar o Revolt normalmente, mas não aparecerá online para outras pessoas.</string>
+    <string name="status_invisible_explainer">Você poderá usar o AIR Chat normalmente, mas não aparecerá online para outras pessoas.</string>
     <string name="channel_link_invalid">Você não pode visualizar este canal</string>
     <string name="emote_info_from_server">de %1$s</string>
     <string name="emote_info_from_unicode">Um emoji padrão que você pode usar em qualquer lugar</string>
@@ -425,7 +425,7 @@
     <string name="settings_sessions_log_out_other_confirm_yes">Sair</string>
     <string name="settings_appearance_colour_overrides_import">Importar</string>
     <string name="settings_appearance_colour_overrides_import_error">Este arquivo não é um arquivo de substituição de cores válido.</string>
-    <string name="settings_feedback_description">Junte-se ao servidor Revolt para dar feedback ou sugestões e relatar bugs.</string>
+    <string name="settings_feedback_description">Junte-se ao servidor AIR Chat para dar feedback ou sugestões e relatar bugs.</string>
     <string name="settings_appearance_colour_overrides_outline_variant">Variante de esboço</string>
     <string name="settings_appearance_colour_overrides_outline">Contorno</string>
     <string name="settings_appearance_colour_overrides_on_error_container">No contêiner de erros</string>
@@ -489,12 +489,12 @@
     <string name="overview_screen_share_profile">Compartilhar Perfil</string>
     <string name="overview_screen_share_profile_description">Dê uma olhada no seu cartão e obtenha um link especial para compartilhar</string>
     <string name="overview_screen_changelog">Registro de Mudanças</string>
-    <string name="overview_screen_changelog_description">O Stoat nunca para, veja o que esteve sendo trabalhado</string>
+    <string name="overview_screen_changelog_description">O AIR Chat nunca para, veja o que esteve sendo trabalhado</string>
     <string name="user_card_tap_to_copy">Toque para copiar</string>
     <string name="user_card_error_sharing">Um erro ocorreu ao compartilhar seu cartão.</string>
     <string name="user_card_data_point_display_name">%1$d.Nome</string>
     <string name="user_card_data_point_username">%1$d.Nome de Usuário</string>
-    <string name="user_card_data_point_join_date">%1$d.No Stoat Desde</string>
+    <string name="user_card_data_point_join_date">%1$d.No AIR Chat Desde</string>
     <string name="user_card_data_point_photo">%1$d.Foto</string>
     <string name="message_failed_to_send">Falha ao enviar, segure um toque para opções</string>
     <string name="message_embed_special_youtube_switch_alt">Toque para tocar o video do YouTube</string>
@@ -538,7 +538,7 @@
     <string name="settings_chat_hint_poorly_formed_settings_keys">Dica</string>
     <string name="settings_chat_hint_poorly_formed_settings_keys_key_notifications">Notificações</string>
     <string name="settings_chat_hint_poorly_formed_settings_keys_key_ordering">Pedido de servidor</string>
-    <string name="settings_chat_hint_poorly_formed_settings_keys_key_android">Revolt para Android</string>
+    <string name="settings_chat_hint_poorly_formed_settings_keys_key_android">AIR Chat para Android</string>
     <string name="settings_chat_hint_poorly_formed_settings_keys_key_unknown">%1$s (desconhecido)</string>
     <string name="settings_chat_hint_poorly_formed_settings_keys_reset">Redefinir configurações de %1$s</string>
     <string name="settings_language_auto">Padrão do sistema</string>
@@ -549,13 +549,13 @@
     <string name="keyboard_shortcut_messaging">Mensagens</string>
     <string name="keyboard_shortcut_messaging_new_line">Nova linha</string>
     <string name="keyboard_shortcut_messaging_send_message">Enviar mensagem</string>
-    <string name="spark_early_access_description_2">Como se trata de acesso antecipado, as coisas podem não estar perfeitas ainda. Você pode encontrar bugs, travamentos ou peculiaridades estranhas ocasionais. Seu feedback nos ajuda a suavizar as arestas e tornar o Revolt ainda melhor.</string>
+    <string name="spark_early_access_description_2">Como se trata de acesso antecipado, as coisas podem não estar perfeitas ainda. Você pode encontrar bugs, travamentos ou peculiaridades estranhas ocasionais. Seu feedback nos ajuda a suavizar as arestas e tornar o AIR Chat ainda melhor.</string>
     <string name="settings_chat_interactive_embeds_description">As incorporações interativas permitem que você interaja com alguns tipos de links diretamente no chat. Por exemplo, você pode reproduzir vídeos do YouTube ou visualizar álbuns do Apple Music.</string>
-    <string name="hint_provide_feedback_description">Se você tiver algum comentário, sugestão ou relatório de bug, informe-nos. Estamos sempre procurando melhorar o Revolt.</string>
+    <string name="hint_provide_feedback_description">Se você tiver algum comentário, sugestão ou relatório de bug, informe-nos. Estamos sempre procurando melhorar o AIR Chat.</string>
     <string name="settings_chat_interactive_embeds">Incorporações interativas</string>
     <string name="settings_language">Idioma</string>
     <string name="settings_chat_interactive_embeds_apple_music">Música da Apple</string>
-    <string name="settings_chat_hint_poorly_formed_settings_keys_description">Algumas das configurações do Revolt estão corrompidas. Isso pode ser devido ao uso de clientes de terceiros. As configurações afetadas são:</string>
+    <string name="settings_chat_hint_poorly_formed_settings_keys_description">Algumas das configurações do AIR Chat estão corrompidas. Isso pode ser devido ao uso de clientes de terceiros. As configurações afetadas são:</string>
     <string name="user_card_data_point_qrcode">%1$d.Código QR</string>
     <string name="file_picker_chip_photo_picker">Selecionar fotos</string>
     <string name="file_picker_chip_camera_failed">Falha ao abrir a câmera</string>
@@ -570,7 +570,7 @@
     <string name="spark_notifications_rationale_cta">Habilitar notificações</string>
     <string name="spark_notifications_rationale_dismiss">Agora não</string>
     <string name="spark_keyboard_shortcuts">Usando um teclado?</string>
-    <string name="spark_keyboard_shortcuts_description">Revolt tem atalhos de teclado! Pressione %1$s para vê-los.</string>
+    <string name="spark_keyboard_shortcuts_description">AIR Chat tem atalhos de teclado! Pressione %1$s para vê-los.</string>
     <string name="spark_keyboard_shortcuts_cta">Abrir atalhos</string>
     <string name="spark_keyboard_shortcuts_dismiss">Tudo certo</string>
     <string name="corner_radius_picker_circular">circular</string>
@@ -605,7 +605,7 @@
     <string name="spark_swipe_to_reply">Deslize para responder.</string>
     <string name="spark_swipe_to_reply_description">Criar conversas em tópicos nunca foi tão fácil.\nBasta deslizar para a esquerda em qualquer mensagem.\nResponda até cinco mensagens de uma vez.</string>
     <string name="friends_scan_qr_result_sheet_invalid_title">QR code inválido</string>
-    <string name="friends_scan_qr_result_sheet_invalid_description">Este não é um QR code válido do Stoat.</string>
+    <string name="friends_scan_qr_result_sheet_invalid_description">Este não é um QR code válido do AIR Chat.</string>
     <string name="friends_scan_qr_result_sheet_missing_permission_description">Conceda permissão à câmera para escanear QR codes.</string>
     <string name="friends_scan_qr_result_sheet_success_title">Adicionar amigo?</string>
     <string name="friends_add_by_tag">Adicione com nome de usuário e tag</string>
@@ -634,7 +634,7 @@
     <string name="voice_error_generic">Ocorreu um erro. Por favor, tente novamente mais tarde.</string>
     <string name="geogate_header">Não disponível na sua região</string>
     <string name="geogate_channel_icon_alt">Canal indisponível</string>
-    <string name="geogate_description">A Revolt pode bloquear conteúdo em determinadas jurisdições em resposta a legislação ou avisos legais</string>
+    <string name="geogate_description">A AIR Chat pode bloquear conteúdo em determinadas jurisdições em resposta a legislação ou avisos legais</string>
     <string name="geogate_acknowledge">Reconhecer</string>
     <string name="voice_join_permission_rationale_permission_camera">Sua câmera, para que outras pessoas possam vê-lo se você quiser compartilhar vídeos</string>
     <string name="retry">Retentar</string>
@@ -657,8 +657,8 @@
     <string name="about_section_oss_licenses">Licenças de código aberto</string>
     <string name="oss_attribution_open_library_website">Acessar o site da biblioteca</string>
     <string name="slowmode_immune">Imunológico</string>
-    <string name="overview_screen_join_lounge">Entre no servidor Stoat</string>
-    <string name="overview_screen_join_lounge_description">Interaja com outros usuários do Stoat, dê sugestões e fique por dentro das novidades do Stoat</string>
+    <string name="overview_screen_join_lounge">Entre no servidor AIR Chat</string>
+    <string name="overview_screen_join_lounge_description">Interaja com outros usuários do AIR Chat, dê sugestões e fique por dentro das novidades do AIR Chat</string>
     <string name="overview_screen_catch_up">Ficar em dia</string>
     <string name="overview_screen_catch_up_description">Veja o que você perdeu enquanto esteve fora</string>
     <string name="overview_screen_catch_up_none">Já estou em dia</string>

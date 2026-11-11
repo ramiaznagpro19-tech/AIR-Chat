@@ -19,8 +19,8 @@
     <string name="login_heading">ログインしましょう</string>
     <string name="password_forgot">パスワードをお忘れですか？</string>
     <string name="password_manager_hint">パスワードマネージャーを使用していますか？</string>
-    <string name="register_heading">Revoltへようこそ</string>
-    <string name="register_image_alt">Revoltを使って物事について話す。</string>
+    <string name="register_heading">AIR Chatへようこそ</string>
+    <string name="register_image_alt">AIR Chatを使って物事について話す。</string>
     <string name="register_form_heading">設定しましょう。</string>
     <string name="register_data">私たちはあなたの情報を守ります。あなたの情報を販売したり、広告を表示するために使用することはありません。</string>
     <string name="register_password">パスワード</string>
@@ -183,7 +183,7 @@
     <string name="report_reason_user_underage">プラットフォームを使うための対象年齢未満のユーザー</string>
     <string name="report_reason_additional_hint">調査に役立つ追加情報。オプション。</string>
     <string name="report_submit_error_header">エラー</string>
-    <string name="report_submit_thanks">Revoltを安全に保つために手助けしていただきありがとうございます。できるだけ早くあなたのレポートを見直します。</string>
+    <string name="report_submit_thanks">AIR Chatを安全に保つために手助けしていただきありがとうございます。できるだけ早くあなたのレポートを見直します。</string>
     <string name="report_block_question">このユーザーをブロックしますか？</string>
     <string name="report_block_yes">ブロック</string>
     <string name="invite_message">あなたはこのサーバーに招待されました。参加しますか？</string>
@@ -203,7 +203,7 @@
     <string name="settings_appearance_theme_m3dynamic_unsupported">マテリアル ユー (未対応)</string>
     <string name="settings_appearance_theme_m3dynamic_unsupported_toast">マテリアル ユーはこのデバイスでサポートされていません。</string>
     <string name="report_submit_error">レポートの送信中にエラーが発生しました。後でやり直してください。</string>
-    <string name="login_onboarding_body">Revoltは、いつでもどこでも、友人やコミュニティとのつながりを維持するための最良の方法の1つです。</string>
+    <string name="login_onboarding_body">AIR Chatは、いつでもどこでも、友人やコミュニティとのつながりを維持するための最良の方法の1つです。</string>
     <string name="register_instructions">たむろしたり、集まったり、話したりするための場所のようなものです。インターネット上にあることが素晴らしいです。</string>
     <string name="instructions_at_mail">%1$sにさらなる指示を送りました。</string>
     <string name="hide_password">パスワードを非表示</string>
@@ -216,10 +216,10 @@
     <string name="could_not_log_in_body">他のデバイスからログアウトしたか、インターネットが切断されている可能性があります。</string>
     <string name="could_not_log_in_cta_try_again">もう一度お試し下さい</string>
     <string name="could_not_log_in_cta_logout">ログアウト</string>
-    <string name="about_brought_to_you_by">Revoltチームが❤️を込めてお届けします。</string>
+    <string name="about_brought_to_you_by">AIR Chatチームが❤️を込めてお届けします。</string>
     <string name="emoji_category_symbols">シンボル</string>
     <string name="home_join_jenvolt_description">JenvoltはAndroidアプリなどあらゆるものを扱う開発者が運営するスペースです。サポートやフィードバックはこちらです。新しい機能を試すことができるかもしれません! 👀</string>
-    <string name="about_full_name">Android版 Revolt</string>
+    <string name="about_full_name">Android版 AIR Chat</string>
     <string name="oss_attribution_tap_to_view_license">タップしてライセンスを表示</string>
     <string name="pick_emoji_alt">絵文字を選ぶ</string>
     <string name="attachment_preview_remove">消す</string>
@@ -233,7 +233,7 @@
     <string name="emoji_category_objects">オブジェクト</string>
     <string name="emoji_category_flags">旗</string>
     <string name="badge_platform_moderation_alt">プラットフォームのモデレーション</string>
-    <string name="badge_team_member_alt">Revoltチームのメンバー</string>
+    <string name="badge_team_member_alt">AIR Chatチームのメンバー</string>
     <string name="badge_webhook_alt">ウェブフック</string>
     <string name="home_join_jenvolt">Jenvoltに参加する</string>
     <string name="overview_screen_error">概要を読み込めませんでした</string>
@@ -251,7 +251,7 @@
     <string name="overview_screen_title">自分</string>
     <string name="overview_screen_share_profile_description">自分のユーザーカードを見て共有ために独自のリンクを受ける</string>
     <string name="overview_screen_changelog">変更履歴</string>
-    <string name="overview_screen_changelog_description">Revoltは決して眠れない、取り組んでいたことのために見てみてください</string>
+    <string name="overview_screen_changelog_description">AIR Chatは決して眠れない、取り組んでいたことのために見てみてください</string>
     <string name="user_card_tap_to_copy">コピーのためにタップ</string>
     <string name="user_card_error_sharing">ユーザーカードを共有しながらエラーが起こりました。</string>
     <string name="user_card_data_point_display_name">%1$d.名前</string>

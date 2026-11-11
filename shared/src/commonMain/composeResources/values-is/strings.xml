@@ -9,7 +9,7 @@
     <string name="terms_of_service">Skilmálar</string>
     <string name="privacy_policy">Persónuvernd</string>
     <string name="login_onboarding_heading">Findu þitt félag, tengdu við heiminn.</string>
-    <string name="login_onboarding_body">Revolt er ein af bestu leiðunum til að vera áfram í sambandi við vini þína og samfélagið þitt, hvar sem er, hvenær sem er.</string>
+    <string name="login_onboarding_body">AIR Chat er ein af bestu leiðunum til að vera áfram í sambandi við vini þína og samfélagið þitt, hvar sem er, hvenær sem er.</string>
     <string name="email">Netfang</string>
     <string name="password">Lykilorð</string>
     <string name="hide_password">Fela lykilorð</string>
@@ -37,8 +37,8 @@
     <string name="password_manager_hint">Að nota lykilorðastjóra?</string>
     <string name="password_forgot_heading">Gleymt lykilorðinu þínu?</string>
     <string name="password_forgot_instructions">Sláðu inn netfangið þitt og við sendum þér leiðbeiningar um hvernig á að endurstilla lykilorðið þitt.</string>
-    <string name="register_heading">Velkomin í Revolt</string>
-    <string name="register_image_alt">Notaðu Revolt til að spjalla um hluti.</string>
+    <string name="register_heading">Velkomin í AIR Chat</string>
+    <string name="register_image_alt">Notaðu AIR Chat til að spjalla um hluti.</string>
     <string name="register_instructions">Þetta er eins og staður til að hittast, hittast og spjalla um hluti. Það besta er að þetta er á netinu.</string>
     <string name="register_form_heading">Við skulum koma þér af stað.</string>
     <string name="register_data">Gögnin þín eru örugg hjá okkur. Við seljum þau ekki og notum þau ekki heldur til að sýna þér auglýsingar.</string>

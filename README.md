@@ -1,6 +1,6 @@
 <div align="center">
-    <h1>Stoat for Android</h1>
-    <p>Official <a href="https://stoat.chat">Stoat</a> Android app.</p>
+    <h1>AIR Chat for Android</h1>
+    <p>AIR Chat Android app.</p>
     <br/><br/>
     <div>
         <a href="https://play.google.com/store/apps/details?id=chat.revolt"><img src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png" alt="Get it on Google Play" width="200"></a>
@@ -12,7 +12,7 @@
 
 ## Description
 
-The codebase includes the app itself, as well as an internal library for interacting with the Stoat
+The codebase includes the app itself, as well as an internal library for interacting with the AIR Chat
 API. The app is written in Kotlin, and wholly
 uses [Jetpack Compose](https://developer.android.com/jetpack/compose).
 
@@ -28,10 +28,10 @@ uses [Jetpack Compose](https://developer.android.com/jetpack/compose).
 
 ## Resources
 
-### Stoat for Android
+### AIR Chat for Android
 
 - [Roadmap](https://op.revolt.wtf/projects/revolt-for-android/work_packages)
-- [Stoat for Android Technical Documentation](https://revoltchat.github.io/android/)
+- [AIR Chat for Android Technical Documentation](https://revoltchat.github.io/android/)
 - [Android-specific Contribution Guide](https://revoltchat.github.io/android/contributing/guidelines/)
   &mdash;**read carefully before contributing!**
 

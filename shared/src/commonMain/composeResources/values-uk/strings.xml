@@ -10,7 +10,7 @@
     <string name="tap_to_reconnect">Натисніть для перепідключення</string>
     <string name="report_reason_user_underage">Недостатній вік для використання платформи</string>
     <string name="report_reason_additional_hint">Будь-яка додаткова інформація, що може допомогти нам у розслідування. Не обов'язково.</string>
-    <string name="report_submit_thanks">Дякуємо за те, що допомагаєте тримати Revolt в безпеці. Ми розглянемо вашу скаргу якнайшвидше.</string>
+    <string name="report_submit_thanks">Дякуємо за те, що допомагаєте тримати AIR Chat в безпеці. Ми розглянемо вашу скаргу якнайшвидше.</string>
     <string name="invite_already_member">Ви вже учасник цього серверу.</string>
     <string name="invite_error_invalid_invite">Не вдалося знайти запрошення з таким кодом.</string>
     <string name="media_viewer_share_image">Поділитися зображенням</string>
@@ -23,7 +23,7 @@
     <string name="message_context_sheet_actions_copy_id_copied">ID повідомлення скопійовано</string>
     <string name="channel_context_sheet_actions_copy_id_copied">ID каналу скопійовано</string>
     <string name="server_context_sheet_actions_copy_id_copied">ID сервера скопійовано</string>
-    <string name="login_onboarding_body">Revolt — це один з найкращих шляхів залишатися на зв'язку з друзями та спільнотою будь-де та будь-коли.</string>
+    <string name="login_onboarding_body">AIR Chat — це один з найкращих шляхів залишатися на зв'язку з друзями та спільнотою будь-де та будь-коли.</string>
     <string name="onboarding_changeable">Проте, якщо ви зміните свою думку, ви завжди можете змінити його у своїх налаштуваннях.</string>
     <string name="register_instructions">Це як місце, де можна позависати, зібратися гуртом та побалакати про всеньке. Найкраще те, що це в інтернеті.</string>
     <string name="no_channels_body">На цьому сервері зовсім відсутні канали. Нема навіть каналу з вітанням. Як грубо.</string>
@@ -56,9 +56,9 @@
     <string name="password_forgot">Забули пароль?</string>
     <string name="password_manager_hint">Використовуєте менеджер паролів?</string>
     <string name="password_forgot_heading">Забули свій пароль?</string>
-    <string name="register_heading">Вітаємо у Revolt</string>
+    <string name="register_heading">Вітаємо у AIR Chat</string>
     <string name="loading">Отримуємо деяку інформацію, зачекайте…</string>
-    <string name="register_image_alt">Використовуйте Revolt для спілкування про будь-що.</string>
+    <string name="register_image_alt">Використовуйте AIR Chat для спілкування про будь-що.</string>
     <string name="register_email">Електронна пошта</string>
     <string name="register_password">Пароль</string>
     <string name="check_mail">Перевірте свою пошту!</string>
@@ -218,7 +218,7 @@
     <string name="system_message_user_joined_alt">Користувач приєднався</string>
     <string name="system_message_text_alt">Системне повідомлення</string>
     <string name="status_invisible">Невидимий</string>
-    <string name="about_full_name">Revolt для Android</string>
+    <string name="about_full_name">AIR Chat для Android</string>
     <string name="pick_emoji_alt">Вибір емодзі</string>
     <string name="emoji_category_animals">Тварини та природа</string>
     <string name="emoji_category_food">Їжа та напої</string>
@@ -226,7 +226,7 @@
     <string name="emoji_category_objects">Об'єкти</string>
     <string name="emoji_category_symbols">Символи</string>
     <string name="emoji_category_flags">Прапори</string>
-    <string name="badge_team_member_alt">Член команди Revolt</string>
+    <string name="badge_team_member_alt">Член команди AIR Chat</string>
     <string name="friends">Друзі</string>
     <string name="friends_incoming_requests">Вхідні запити</string>
     <string name="friends_outgoing_requests">Вихідні запити</string>
@@ -246,7 +246,7 @@
     <string name="status_dnd">Не турбувати</string>
     <string name="status_dnd_explainer">Ви не отримуватимете жодних повідомлень, в тому числі @згадування.</string>
     <string name="status_offline">Не в мережі</string>
-    <string name="status_invisible_explainer">Ви зможете користуватися Revolt як зазвичай, але ви не будете відображатись онлайн для інших людей.</string>
+    <string name="status_invisible_explainer">Ви зможете користуватися AIR Chat як зазвичай, але ви не будете відображатись онлайн для інших людей.</string>
     <string name="server_flag_official">Офіційний сервер</string>
     <string name="server_flag_verified">Перевірений сервер</string>
     <string name="channel_link_invalid">Ви не можете переглядати цей канал</string>
@@ -300,7 +300,7 @@
     <string name="settings_appearance_colour_overrides_import">Імпорт</string>
     <string name="settings_appearance_colour_overrides_outline_variant">Варіант контуру</string>
     <string name="system_message_channel_icon_changed_alt">Значок каналу змінено</string>
-    <string name="about_brought_to_you_by">Створено з ❤️ для вас командою Revolt.</string>
+    <string name="about_brought_to_you_by">Створено з ❤️ для вас командою AIR Chat.</string>
     <string name="emoji_category_smileys">Смайлики та емоції</string>
     <string name="emoji_category_people">Люди та тіла</string>
     <string name="emoji_category_travel">Подорожі та місця</string>
@@ -346,7 +346,7 @@
     <string name="settings_appearance_colour_overrides_primary_container">Основний контейнер</string>
     <string name="settings_sessions_this_device_unavailable">Сесія цього пристрою недоступна. Будь ласка, **увійдіть ще раз**, щоб побачити поточну сесію.</string>
     <string name="discover_alt">Відкрийте для себе</string>
-    <string name="discover">Відкрийте Revolt</string>
+    <string name="discover">Відкрийте AIR Chat</string>
     <string name="report_server_heading">Розкажіть нам, що не так із цим сервером</string>
     <string name="report_reason_content_illegal_extortion">Вимагання чи шантаж</string>
     <string name="report_reason_content_extreme_violence">Насильство, кроваві сцени або жорстоке поводження з тваринами</string>
@@ -371,7 +371,7 @@
     <string name="settings_appearance_colour_overrides_inverse_surface">Зворотна поверхня</string>
     <string name="settings_appearance_colour_overrides_inverse_on_surface">Зворотна поверхня</string>
     <string name="settings_appearance_colour_overrides_on_error">При Помилці</string>
-    <string name="settings_feedback_description">Приєднуйтесь до сервера Revolt, щоб залишати відгуки, пропозиції та повідомляти про помилки.</string>
+    <string name="settings_feedback_description">Приєднуйтесь до сервера AIR Chat, щоб залишати відгуки, пропозиції та повідомляти про помилки.</string>
     <string name="channel_settings_overview_nsfw_confirm_title">Позначити цей канал як NSFW?</string>
     <string name="channel_settings_overview_nsfw_confirm_description">Користувачам буде запропоновано підтвердити свій вік перед тим, як приєднатися до цього каналу.</string>
     <string name="channel_settings_overview_nsfw_confirm_yes">Позначити як NSFW</string>
@@ -413,7 +413,7 @@
     <string name="channel_settings_overview_description">Опис каналу</string>
     <string name="channel_settings_overview_description_hint">Цей канал призначений виключно для розмови про…</string>
     <string name="channel_settings_overview_nsfw">Позначити як NSFW</string>
-    <string name="share_target_attachment_too_large">Це вкладення занадто велике для Revolt (максимум $1$).</string>
+    <string name="share_target_attachment_too_large">Це вкладення занадто велике для AIR Chat (максимум $1$).</string>
     <string name="settings_appearance_colour_overrides_scrim">Скрім</string>
     <string name="settings_chat">Чат</string>
     <string name="emote_info_from_unicode">Смайлик за замовчуванням, який можна використовувати будь-де</string>
@@ -453,15 +453,15 @@
     <string name="message_context_sheet_actions_delete_confirmation_no">Залишити</string>
     <string name="user_info_sheet_category_joined">Приєднався</string>
     <string name="user_info_sheet_category_badges">Значки</string>
-    <string name="share_target_heading">Поділіться на Revolt</string>
-    <string name="share_target_login_first">Будь ласка, авторизуйтесь, перш ніж ділитися на Revolt.</string>
+    <string name="share_target_heading">Поділіться на AIR Chat</string>
+    <string name="share_target_login_first">Будь ласка, авторизуйтесь, перш ніж ділитися на AIR Chat.</string>
     <string name="share_target_invalid_intent">Це не є дійсним наміром поділитися.</string>
     <string name="could_not_log_in_heading">Виникла проблема під час входу</string>
     <string name="status_text_none">Що нового?</string>
     <string name="programming_language_snippet">[%1$s фрагмент]</string>
     <string name="colour_picker_mode_sliders">Повзунки</string>
     <string name="colour_picker_preview">Попередній перегляд</string>
-    <string name="spark_keyboard_shortcuts_description">Revolt має комбінації клавіш! Натисніть %1$s, щоб побачити їх.</string>
+    <string name="spark_keyboard_shortcuts_description">AIR Chat має комбінації клавіш! Натисніть %1$s, щоб побачити їх.</string>
     <string name="status_text_explainer">Текст вашого статусу буде видимим для всіх. Будьте короткими та приємними.</string>
     <string name="status_text_error_other">Під час оновлення тексту статусу сталася помилка. Спробуйте пізніше.</string>
     <string name="user_info_sheet_webhook">Ви знайшли вебхук!</string>
@@ -476,14 +476,14 @@
     <string name="spark_keyboard_shortcuts">Використовуючи клавіатуру?</string>
     <string name="message_failed_to_send">Не вдалося надіслати, натисніть і утримуйте для опцій</string>
     <string name="colour_picker_saturation">Насиченість</string>
-    <string name="spark_early_access_description_2">Оскільки це ранній доступ, все ще може бути не ідеальним. Час від часу ви можете зіткнутися з помилкою, збоєм або дивною примхою. Ваші відгуки допомагають нам згладити шорсткості та зробити Revolt кращим.</string>
+    <string name="spark_early_access_description_2">Оскільки це ранній доступ, все ще може бути не ідеальним. Час від часу ви можете зіткнутися з помилкою, збоєм або дивною примхою. Ваші відгуки допомагають нам згладити шорсткості та зробити AIR Chat кращим.</string>
     <string name="settings_chat_interactive_embeds_description">Інтерактивні вставки дозволяють вам взаємодіяти з деякими типами посилань безпосередньо в чаті. Наприклад, ви можете відтворювати відео YouTube або переглядати альбоми з Apple Music.</string>
     <string name="spark_notifications_rationale_description">Увімкніть сповіщення, щоб отримувати актуальні повідомлення та згадки.</string>
     <string name="spark_early_access">Ласкаво просимо до Раннього Доступу! 🚀</string>
     <string name="spark_early_access_description_1">Ви один із перших, хто спробував наш новий додаток для Android. Ми раді бачити вас тут!</string>
     <string name="settings_appearance_avatar_shape_description">Виберіть ступінь округлення для зображень профілю, зокрема в чаті та профілях. Це стосується всіх користувачів.</string>
     <string name="settings_chat_interactive_embeds">Інтерактивні вставки</string>
-    <string name="settings_chat_hint_poorly_formed_settings_keys_description">Деякі ваші налаштування Revolt пошкоджені. Це може бути пов’язано з використанням сторонніх клієнтів. Уражені налаштування:</string>
+    <string name="settings_chat_hint_poorly_formed_settings_keys_description">Деякі ваші налаштування AIR Chat пошкоджені. Це може бути пов’язано з використанням сторонніх клієнтів. Уражені налаштування:</string>
     <string name="keyboard_shortcut_messaging_send_message">Надіслати Повідомлення</string>
     <string name="hide_password">Приховати пароль</string>
     <string name="show_password">Показати пароль</string>
@@ -506,12 +506,12 @@
     <string name="overview_screen_share_profile">Поділіться профілем</string>
     <string name="overview_screen_share_profile_description">Подивіться на свою картку користувача та отримайте спеціальне посилання, щоб поділитися</string>
     <string name="overview_screen_changelog">Журнал змін</string>
-    <string name="overview_screen_changelog_description">Revolt ніколи не спить, погляньте на те, що було в розробці</string>
+    <string name="overview_screen_changelog_description">AIR Chat ніколи не спить, погляньте на те, що було в розробці</string>
     <string name="user_card_tap_to_copy">Торкніться, щоб скопіювати</string>
     <string name="user_card_error_sharing">Під час надання доступу до вашої картки користувача сталася помилка.</string>
     <string name="user_card_data_point_display_name">%1$d.Ім'я</string>
     <string name="user_card_data_point_username">%1$d.Ім'я користувача</string>
-    <string name="user_card_data_point_join_date">%1$d.У Revolt з</string>
+    <string name="user_card_data_point_join_date">%1$d.У AIR Chat з</string>
     <string name="user_card_data_point_qrcode">%1$d.QR-код</string>
     <string name="user_card_data_point_photo">%1$d.Фото</string>
     <string name="main_tab_conversations">Розмови</string>
@@ -557,7 +557,7 @@
     <string name="spark_early_access_description_3">Ми дуже раді, що ви на борту. Давайте зробимо щось чудове разом!</string>
     <string name="spark_early_access_cta">Зрозумів</string>
     <string name="hint_provide_feedback">Ми любимо відгуки!</string>
-    <string name="hint_provide_feedback_description">Якщо у вас є відгук, пропозиції чи звіти про помилки, повідомте нас. Ми завжди прагнемо покращити Revolt.</string>
+    <string name="hint_provide_feedback_description">Якщо у вас є відгук, пропозиції чи звіти про помилки, повідомте нас. Ми завжди прагнемо покращити AIR Chat.</string>
     <string name="hint_provide_feedback_cta">Оцініть в Google Play</string>
     <string name="hint_provide_feedback_join_server">Приєднайтеся до сервера тестувальників</string>
     <string name="hint_provide_feedback_dismiss">Готово</string>
@@ -566,7 +566,7 @@
     <string name="settings_chat_hint_poorly_formed_settings_keys">Підказка</string>
     <string name="settings_chat_hint_poorly_formed_settings_keys_key_notifications">Сповіщення</string>
     <string name="settings_chat_hint_poorly_formed_settings_keys_key_ordering">Порядок серверів</string>
-    <string name="settings_chat_hint_poorly_formed_settings_keys_key_android">Revolt для Android</string>
+    <string name="settings_chat_hint_poorly_formed_settings_keys_key_android">AIR Chat для Android</string>
     <string name="settings_chat_hint_poorly_formed_settings_keys_key_unknown">%1$s (невідомо)</string>
     <string name="settings_chat_hint_poorly_formed_settings_keys_reset">Скинути налаштування %1$s</string>
     <string name="settings_language">Мова</string>
@@ -614,7 +614,7 @@
     <string name="friends_add_by_tag_sheet_add">Додати</string>
     <string name="friends_add_by_tag_sheet_paste_from_clipboard">Вставити з буфера обміну</string>
     <string name="friends_add_by_tag_sheet_invalid_clipboard">Буфер обміну не містить дійсного імені користувача та дискримінатора.</string>
-    <string name="friends_scan_qr_result_sheet_invalid_description">Це недійсний QR-код Revolt.</string>
+    <string name="friends_scan_qr_result_sheet_invalid_description">Це недійсний QR-код AIR Chat.</string>
     <string name="friends_add_by_tag">Додати за іменем користувача та дискримінатором</string>
     <string name="friends_add_by_tag_sheet_description">Ви можете додавати друзів за їхнім %1$sіменем користувача%3$s та %2$sдискримінатором%3$s. Наприклад, якщо їхнє ім'я користувача %1$sjane%3$s та дискримінатор %2$s1234%3$s, Ви можете додати їх за допомогою %1$sjane%3$s#%2$s1234%3$s.</string>
     <string name="attachment_spoiler">Спойлер</string>
@@ -635,6 +635,6 @@
     <string name="voice_join_permission_rationale_heading">Нам потрібен ваш дозвіл</string>
     <string name="voice_join_permission_rationale_description">Щоб приєднатися до голосового каналу, Вам потрібно надати наступні дозволи:</string>
     <string name="voice_join_permission_rationale_assurance">Не хвилюйтеся, ми не будемо використовувати ваш мікрофон або камеру без вашого дозволу.</string>
-    <string name="geogate_description">Revolt може блокувати контент у певних юрисдикціях у відповідь на законодавство або юридичні повідомлення</string>
+    <string name="geogate_description">AIR Chat може блокувати контент у певних юрисдикціях у відповідь на законодавство або юридичні повідомлення</string>
     <string name="geogate_acknowledge">Погодитись</string>
 </resources>

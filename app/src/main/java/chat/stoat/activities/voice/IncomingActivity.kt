@@ -195,7 +195,7 @@ fun IncomingCallInner() {
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text(
-                "Incoming Call on Stoat",
+                "Incoming Call on AIR Chat",
                 style = MaterialTheme.typography.headlineMedium,
                 fontSize = 24.sp
             )

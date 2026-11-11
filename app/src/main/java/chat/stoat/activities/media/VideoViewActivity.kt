@@ -281,7 +281,7 @@ fun VideoViewScreen(resource: AutumnResource, onClose: () -> Unit = {}) {
                 ContentValues().apply {
                     put(MediaStore.Video.Media.DISPLAY_NAME, resource.filename)
                     put(MediaStore.Video.Media.MIME_TYPE, resource.contentType)
-                    put(MediaStore.Video.Media.RELATIVE_PATH, "Movies/Revolt")
+                    put(MediaStore.Video.Media.RELATIVE_PATH, "Movies/AIR Chat")
                     put(MediaStore.Video.Media.IS_PENDING, 1)
                 }
             )?.let { uri ->

@@ -786,7 +786,7 @@ private fun InviteLink(link: String, copyableLink: String) {
                 coroutineScope.launch {
                     clip.setClipEntry(
                         ClipData.newPlainText(
-                            "Stoat invite link",
+                            "AIR Chat invite link",
                             copyableLink
                         ).toClipEntry()
                     )
