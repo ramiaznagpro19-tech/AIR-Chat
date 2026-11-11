@@ -134,7 +134,7 @@ object AirE2EE {
 
     fun isEncrypted(messageId: String?): Boolean = messageId != null && messageId in encryptedIds
 
-    fun isPending(messageId: String?): Boolean = messageId != null && messageId in pendingCiphertext
+    fun isPending(messageId: String?): Boolean = messageId != null && pendingCiphertext.containsKey(messageId)
 
     fun isControl(content: String?): Boolean = content?.startsWith(CONTROL_PREFIX) == true
 
