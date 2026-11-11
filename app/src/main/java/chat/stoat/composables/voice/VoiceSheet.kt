@@ -1,5 +1,10 @@
 package chat.stoat.composables.voice
 
+import chat.stoat.shared.resources.ic_lock_24dp
+import chat.stoat.shared.resources.air_call_e2ee_off
+import chat.stoat.shared.resources.air_call_e2ee_on
+import chat.stoat.shared.resources.air_video_quality
+import chat.stoat.voice.AirVideoQuality
 import android.app.Activity
 import android.media.projection.MediaProjectionManager
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -356,6 +361,31 @@ fun VoiceSheet(onDisconnect: () -> Unit) {
                 }
             }
 
+            // AIR Chat: end-to-end encryption status of the call
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 6.dp)
+            ) {
+                val encrypted = VoiceCallManager.isCallEncrypted
+                val tint = if (encrypted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                Icon(
+                    painter = painterResource(Res.drawable.ic_lock_24dp),
+                    contentDescription = null,
+                    tint = tint,
+                    modifier = Modifier.size(16.dp)
+                )
+                Text(
+                    text = stringResource(
+                        if (encrypted) Res.string.air_call_e2ee_on else Res.string.air_call_e2ee_off
+                    ),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = tint
+                )
+            }
+
             // the prompt where you select whether you want to share a single app or the whole screen
             val screenCaptureLauncher = rememberLauncherForActivityResult(
                 ActivityResultContracts.StartActivityForResult()
@@ -502,6 +532,51 @@ fun VoiceSheet(onDisconnect: () -> Unit) {
                                 }
                             }
                     ) { Text(stringResource(Res.string.voice_action_screen_share)) }
+                    // AIR Chat: video & screen share quality, from HD up to 4K
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        var qualityMenuOpen by remember { mutableStateOf(false) }
+                        ListItem(
+                            colors = ListItemDefaults.colors(
+                                containerColor = MaterialTheme.colorScheme.surfaceContainer
+                            ),
+                            supportingContent = {
+                                Text(stringResource(VoiceCallManager.videoQuality.label))
+                            },
+                            leadingContent = {
+                                Icon(
+                                    painter = painterResource(Res.drawable.ic_videocam_24dp),
+                                    contentDescription = null
+                                )
+                            },
+                            modifier = Modifier
+                                .clip(MaterialTheme.shapes.extraSmall)
+                                .clickable { qualityMenuOpen = true }
+                        ) {
+                            Text(stringResource(Res.string.air_video_quality))
+                        }
+                        DropdownMenu(
+                            expanded = qualityMenuOpen,
+                            onDismissRequest = { qualityMenuOpen = false }
+                        ) {
+                            AirVideoQuality.entries.forEach { quality ->
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(quality.label)) },
+                                    trailingIcon = {
+                                        if (quality == VoiceCallManager.videoQuality) {
+                                            Icon(
+                                                painter = painterResource(Res.drawable.ic_check_24dp),
+                                                contentDescription = null
+                                            )
+                                        }
+                                    },
+                                    onClick = {
+                                        VoiceCallManager.setVideoQuality(quality)
+                                        qualityMenuOpen = false
+                                    }
+                                )
+                            }
+                        }
+                    }
                     if (audioHandler != null) {
                         Box(modifier = Modifier.fillMaxWidth()) {
                             ListItem(

@@ -7,6 +7,8 @@ import android.os.StrictMode
 import chat.stoat.api.realtime.RealtimeConnectionMonitor
 import chat.stoat.di.appModule
 import chat.stoat.di.viewModelModule
+import chat.stoat.e2ee.AirE2EE
+import chat.stoat.p2p.AirP2P
 import co.touchlab.kermit.Logger
 import co.touchlab.kermit.Severity
 import coil3.ImageLoader
@@ -45,6 +47,11 @@ class StoatApplication : Application(), SingletonImageLoader.Factory {
             androidLogger()
             modules(appModule, viewModelModule)
         }
+
+        // AIR Chat: end-to-end encryption must be ready before any message is received
+        AirE2EE.install(this)
+        // AIR Chat: peer-to-peer sync of threads & forums
+        AirP2P.install(this)
 
         RealtimeConnectionMonitor(this).start()
 

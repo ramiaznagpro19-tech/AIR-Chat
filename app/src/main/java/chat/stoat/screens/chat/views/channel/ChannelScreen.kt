@@ -1,5 +1,12 @@
 package chat.stoat.screens.chat.views.channel
 
+import chat.stoat.shared.resources.ic_forum_24dp
+import chat.stoat.shared.resources.ic_lock_24dp
+import chat.stoat.shared.resources.air_threads_and_forums
+import chat.stoat.shared.resources.air_e2ee_title
+import chat.stoat.sheets.AirE2EESheet
+import chat.stoat.e2ee.AirE2EE
+import chat.stoat.shared.resources.air_e2ee_too_long
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.ContentValues
@@ -700,6 +707,16 @@ fun ChannelScreen(
             viewModel.requestJump(failure.messageId)
         }
     }
+
+    // AIR Chat: explain why an encrypted message could not be sent
+    LaunchedEffect(viewModel.e2eeMessageTooLong) {
+        if (!viewModel.e2eeMessageTooLong) return@LaunchedEffect
+        viewModel.e2eeMessageTooLong = false
+        snackbarHostState.showSnackbar(
+            message = getString(Res.string.air_e2ee_too_long),
+            duration = SnackbarDuration.Long,
+        )
+    }
     // </editor-fold>
     // <editor-fold desc="Sheets">
     var channelInfoSheetShown by remember { mutableStateOf(false) }
@@ -777,6 +794,24 @@ fun ChannelScreen(
                     reactSheetShown = false
                 }
             }
+        }
+    }
+
+    // AIR Chat: end-to-end encryption sheet
+    var e2eeSheetShown by remember { mutableStateOf(false) }
+    if (e2eeSheetShown) {
+        val e2eeSheetState = rememberBottomSheetState(
+            initialValue = SheetValue.Hidden,
+            enabledValues = setOf(SheetValue.Hidden, SheetValue.Expanded),
+        )
+
+        ModalBottomSheet(
+            sheetState = e2eeSheetState,
+            onDismissRequest = {
+                e2eeSheetShown = false
+            }
+        ) {
+            AirE2EESheet(channelId = channelId)
         }
     }
     // </editor-fold>
@@ -934,6 +969,33 @@ fun ChannelScreen(
                                     contentDescription = stringResource(Res.string.voice_start_call)
                                 )
                             }
+                        }
+                        // AIR Chat: end-to-end encryption status
+                        @Suppress("UNUSED_VARIABLE")
+                        val e2eeRevision = AirE2EE.revision
+                        IconButton(onClick = { e2eeSheetShown = true }) {
+                            Icon(
+                                painter = painterResource(Res.drawable.ic_lock_24dp),
+                                contentDescription = stringResource(Res.string.air_e2ee_title),
+                                tint = if (AirE2EE.isEnabled(channelId)) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    LocalContentColor.current.copy(alpha = 0.5f)
+                                }
+                            )
+                        }
+                        // AIR Chat: peer-to-peer threads & forums
+                        IconButton(onClick = {
+                            scope.launch {
+                                ActionChannel.send(
+                                    Action.TopNavigate("channel/$channelId/threads")
+                                )
+                            }
+                        }) {
+                            Icon(
+                                painter = painterResource(Res.drawable.ic_forum_24dp),
+                                contentDescription = stringResource(Res.string.air_threads_and_forums)
+                            )
                         }
                         IconButton(onClick = {
                             scope.launch {

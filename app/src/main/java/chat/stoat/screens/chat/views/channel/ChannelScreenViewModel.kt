@@ -1,5 +1,7 @@
 package chat.stoat.screens.chat.views.channel
 
+import chat.stoat.e2ee.AirE2EE
+import chat.stoat.e2ee.MessageTooLongForEncryptionException
 import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -137,6 +139,9 @@ class ChannelScreenViewModel(
     var denyMessageField by mutableStateOf(false)
     var denyMessageFieldReasonResource by mutableStateOf(Res.string.typing_blank)
 
+    /** AIR Chat: set when a message could not be sent because it is too long to encrypt. */
+    var e2eeMessageTooLong by mutableStateOf(false)
+
     var editingMessage by mutableStateOf<String?>(null)
     var isSending by mutableStateOf(false)
 
@@ -150,6 +155,31 @@ class ChannelScreenViewModel(
         viewModelScope.launch {
             listenToWsEvents()
         }
+        viewModelScope.launch {
+            // AIR Chat: when a new end-to-end encryption key arrives, decrypt the messages that
+            // were waiting for it.
+            AirE2EE.keyEpoch.collect { retryPendingEncryptedMessages() }
+        }
+    }
+
+    private suspend fun retryPendingEncryptedMessages() {
+        if (items.none { it is ChannelScreenItem.RegularMessage && AirE2EE.isPending(it.message.id) }) {
+            return
+        }
+        val updated = items.map { item ->
+            if (item is ChannelScreenItem.RegularMessage && AirE2EE.isPending(item.message.id)) {
+                val decrypted = AirE2EE.retry(item.message)
+                if (decrypted != null) {
+                    decrypted.id?.let { StoatAPI.messageCache[it] = decrypted }
+                    ChannelScreenItem.RegularMessage(decrypted, parseAst(decrypted.content))
+                } else {
+                    item
+                }
+            } else {
+                item
+            }
+        }
+        updateItems(updated)
     }
 
     private var loadMessagesJob: Job? = null
@@ -608,6 +638,7 @@ class ChannelScreenViewModel(
                 )
             } catch (e: Exception) {
                 Log.e("ChannelScreenViewModel", "Failed to send message", e)
+                if (e is MessageTooLongForEncryptionException) e2eeMessageTooLong = true
                 updateItems(
                     listOf(
                         ChannelScreenItem.FailedMessage(
@@ -659,7 +690,8 @@ class ChannelScreenViewModel(
     }
 
     private suspend fun messagesToItems(messages: Iterable<Message>): List<ChannelScreenItem> =
-        messages.map { message ->
+        // AIR Chat: end-to-end encryption key exchanges are not shown
+        messages.filterNot { AirE2EE.isControl(it) }.map { message ->
             if (message.system != null) {
                 ChannelScreenItem.SystemMessage(message)
             } else {
@@ -921,6 +953,7 @@ class ChannelScreenViewModel(
                 when (it) {
                     is MessageFrame -> {
                         if (it.channel != channel?.id) return@onEach
+                        if (AirE2EE.isControl(it)) return@onEach
                         it.author?.let(::clearTypingUser)
 
                         // If we already have the message we are just catching up on the WebSocket connection. Skip

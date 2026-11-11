@@ -66,6 +66,10 @@ import androidx.core.view.WindowCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.compose.NavHost
+import chat.stoat.screens.chat.AirThreadScreen
+import chat.stoat.screens.chat.AirThreadsScreen
+import androidx.navigation.navArgument
+import androidx.navigation.NavType
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import chat.stoat.BuildConfig
@@ -851,6 +855,28 @@ fun AppEntrypoint(
                     composable("channel/{channelId}/search") { backStackEntry ->
                         val channelId = backStackEntry.arguments?.getString("channelId") ?: ""
                         ChannelSearchScreen(navController, channelId)
+                    }
+
+                    // AIR Chat: peer-to-peer threads & forums
+                    composable(
+                        "channel/{channelId}/threads?from={from}",
+                        arguments = listOf(
+                            navArgument("from") {
+                                type = NavType.StringType
+                                nullable = true
+                                defaultValue = null
+                            }
+                        )
+                    ) { backStackEntry ->
+                        val channelId = backStackEntry.arguments?.getString("channelId") ?: ""
+                        val from = backStackEntry.arguments?.getString("from")
+                        AirThreadsScreen(navController, channelId, from)
+                    }
+
+                    composable("channel/{channelId}/thread/{postId}") { backStackEntry ->
+                        val channelId = backStackEntry.arguments?.getString("channelId") ?: ""
+                        val postId = backStackEntry.arguments?.getString("postId") ?: ""
+                        AirThreadScreen(navController, channelId, postId)
                     }
 
                     composable("about") { AboutScreen(navController) }

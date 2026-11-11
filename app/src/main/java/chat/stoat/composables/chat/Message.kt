@@ -1,5 +1,9 @@
 package chat.stoat.composables.chat
 
+import chat.stoat.shared.resources.ic_lock_24dp
+import chat.stoat.shared.resources.air_e2ee_waiting_for_key
+import chat.stoat.shared.resources.air_e2ee_encrypted
+import chat.stoat.e2ee.AirE2EE
 import android.annotation.SuppressLint
 import android.content.Intent
 import android.icu.text.DateFormat
@@ -508,11 +512,41 @@ fun Message(
                                         modifier = Modifier.size(16.dp)
                                     )
                                 }
+
+                                // AIR Chat: end-to-end encryption indicator
+                                if (AirE2EE.isEncrypted(message.id)) {
+                                    Icon(
+                                        painter = painterResource(Res.drawable.ic_lock_24dp),
+                                        contentDescription = stringResource(Res.string.air_e2ee_encrypted),
+                                        tint = MaterialTheme.colorScheme.onBackground.copy(
+                                            alpha = 0.5f
+                                        ),
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                }
                             }
                         }
 
                         key(message.content) {
-                            message.content?.takeIf { voiceMessageMetadata == null }?.let {
+                            if (AirE2EE.isPending(message.id)) {
+                                // AIR Chat: encrypted message whose key has not arrived yet
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        painter = painterResource(Res.drawable.ic_lock_24dp),
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = stringResource(Res.string.air_e2ee_waiting_for_key),
+                                        fontStyle = FontStyle.Italic,
+                                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                }
+                            } else message.content?.takeIf { voiceMessageMetadata == null }?.let {
                                 val content = it.stripPUAChars()
                                 if (content.isBlank()) return@let // if only an attachment is sent
 

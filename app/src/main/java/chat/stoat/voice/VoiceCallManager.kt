@@ -14,6 +14,7 @@ import chat.stoat.api.routes.voice.JoinCallResponse
 import chat.stoat.api.routes.voice.joinCall
 import chat.stoat.composables.voice.VoiceSound
 import chat.stoat.composables.voice.VoiceSoundPlayer
+import chat.stoat.e2ee.AirE2EE
 import chat.stoat.services.OngoingCallService
 import chat.stoat.shared.resources.Res
 import chat.stoat.shared.resources.voice_error_generic
@@ -25,11 +26,12 @@ import io.ktor.client.request.get
 import io.ktor.http.isSuccess
 import io.livekit.android.LiveKit
 import io.livekit.android.RoomOptions
+import io.livekit.android.e2ee.E2EEOptions
 import io.livekit.android.events.RoomEvent
 import io.livekit.android.room.Room
+import io.livekit.android.room.participant.VideoTrackPublishDefaults
 import io.livekit.android.room.track.LocalVideoTrackOptions
 import io.livekit.android.room.track.RemoteAudioTrack
-import io.livekit.android.room.track.ScreenSharePresets
 import io.livekit.android.room.track.Track
 import io.livekit.android.util.flow
 import kotlinx.coroutines.CompletableDeferred
@@ -73,6 +75,29 @@ object VoiceCallManager {
     var requestedChannelId: String? by mutableStateOf(null)
         private set
 
+    /** AIR Chat: whether the current call is end-to-end encrypted. */
+    var isCallEncrypted: Boolean by mutableStateOf(false)
+        private set
+
+    /** AIR Chat: quality used for camera video and screen sharing. */
+    var videoQuality: AirVideoQuality by mutableStateOf(AirVideoQuality.load(StoatApplication.instance))
+        private set
+
+    fun setVideoQuality(quality: AirVideoQuality) {
+        videoQuality = quality
+        AirVideoQuality.save(context, quality)
+        val room = room ?: return
+        quality.applyTo(room)
+        // Re-publish the camera so the new quality takes effect immediately. Screen sharing
+        // uses the new quality the next time it is started.
+        if (room.localParticipant.isCameraEnabled) {
+            scope.launch {
+                room.localParticipant.setCameraEnabled(false)
+                room.localParticipant.setCameraEnabled(true)
+            }
+        }
+    }
+
     fun openSheet(channelId: String) {
         requestedChannelId = channelId
         isSheetVisible = true
@@ -102,13 +127,33 @@ object VoiceCallManager {
         hasPlayedLeaveSound = false
         soundPlayer = VoiceSoundPlayer(context)
 
+        // AIR Chat: calls are end-to-end encrypted with a key derived from the conversation's
+        // end-to-end encryption key, and video/screen share use the selected quality (up to 4K).
+        val callKey = AirE2EE.callKey(channelId)
+        if (callKey == null && AirE2EE.isEnabled(channelId)) AirE2EE.requestKeys(channelId)
+        isCallEncrypted = callKey != null
+        val quality = videoQuality
+
         val newRoom = LiveKit.create(
             context.applicationContext,
             RoomOptions(
+                dynacast = true,
+                e2eeOptions = callKey?.let { E2EEOptions(sharedKey = it) },
+                videoTrackCaptureDefaults = LocalVideoTrackOptions(
+                    captureParams = quality.camera.capture
+                ),
+                videoTrackPublishDefaults = VideoTrackPublishDefaults(
+                    videoEncoding = quality.camera.encoding,
+                    videoCodec = quality.codec.codecName,
+                ),
                 screenShareTrackCaptureDefaults = LocalVideoTrackOptions(
                     isScreencast = true,
-                    captureParams = ScreenSharePresets.H720_FPS30.capture
-                )
+                    captureParams = quality.screen.capture
+                ),
+                screenShareTrackPublishDefaults = VideoTrackPublishDefaults(
+                    videoEncoding = quality.screen.encoding,
+                    videoCodec = quality.codec.codecName,
+                ),
             )
         )
         room = newRoom
@@ -146,6 +191,7 @@ object VoiceCallManager {
         errorResource = null
         isDeafened = false
         micWasOnBeforeDeafen = false
+        isCallEncrypted = false
 
         if (leftRoom != null) {
             if (hasPlayedJoinSound && !hasPlayedLeaveSound) {

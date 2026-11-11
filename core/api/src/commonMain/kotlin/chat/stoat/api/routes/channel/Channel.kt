@@ -6,6 +6,7 @@ import chat.stoat.api.StoatHttp
 import chat.stoat.api.StoatJson
 import chat.stoat.api.api
 import chat.stoat.api.apiError
+import chat.stoat.api.internals.MessageInterceptor
 import chat.stoat.api.internals.ULID
 import chat.stoat.core.model.schemas.Channel
 import chat.stoat.core.model.schemas.Message
@@ -53,10 +54,11 @@ suspend fun fetchMessagesFromChannel(
         .bodyAsText()
 
     if (includeUsers) {
-        return StoatJson.decodeFromString(
+        val decoded = StoatJson.decodeFromString(
             MessagesInChannel.serializer(),
             response
         )
+        return decoded.copy(messages = decoded.messages?.let { MessageInterceptor.incomingAll(it) })
     } else {
         val messages = StoatJson.decodeFromString(
             ListSerializer(Message.serializer()),
@@ -64,7 +66,7 @@ suspend fun fetchMessagesFromChannel(
         )
 
         return MessagesInChannel(
-            messages = messages,
+            messages = MessageInterceptor.incomingAll(messages),
             users = emptyList(),
             members = emptyList()
         )
@@ -113,7 +115,7 @@ suspend fun sendMessage(
         contentType(ContentType.Application.Json)
         setBody(
             SendMessageBody(
-                content = content,
+                content = MessageInterceptor.outgoing(channelId, content),
                 nonce = nonce,
                 replies = replies ?: emptyList(),
                 attachments = attachments
@@ -131,7 +133,7 @@ suspend fun editMessage(channelId: String, messageId: String, newContent: String
         contentType(ContentType.Application.Json)
         setBody(
             EditMessageBody(
-                content = newContent
+                content = newContent?.let { MessageInterceptor.outgoing(channelId, it) }
             )
         )
     }
@@ -188,9 +190,11 @@ suspend fun fetchSingleMessage(channelId: String, messageId: String): Message {
     val response = StoatHttp.get("/channels/$channelId/messages/$messageId".api())
         .bodyAsText()
 
-    return StoatJson.decodeFromString(
-        Message.serializer(),
-        response
+    return MessageInterceptor.safeIncoming(
+        StoatJson.decodeFromString(
+            Message.serializer(),
+            response
+        )
     )
 }
 
@@ -364,10 +368,11 @@ suspend fun searchChannel(
         .bodyAsText()
 
     if (includeUsers == true) {
-        return StoatJson.decodeFromString(
+        val decoded = StoatJson.decodeFromString(
             MessagesInChannel.serializer(),
             response
         )
+        return decoded.copy(messages = decoded.messages?.let { MessageInterceptor.incomingAll(it) })
     } else {
         val messages = StoatJson.decodeFromString(
             ListSerializer(Message.serializer()),
@@ -375,7 +380,7 @@ suspend fun searchChannel(
         )
 
         return MessagesInChannel(
-            messages = messages,
+            messages = MessageInterceptor.incomingAll(messages),
             users = emptyList(),
             members = emptyList()
         )

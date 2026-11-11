@@ -1,5 +1,8 @@
 package chat.stoat.c2dm
 
+import chat.stoat.e2ee.AirE2EE
+import chat.stoat.core.model.schemas.Message
+import chat.stoat.api.internals.MessageInterceptor
 import android.app.PendingIntent
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -102,7 +105,7 @@ class HandlerService : FirebaseMessagingService() {
             return
         }
 
-        val body = data["body"] ?: run {
+        val rawBody = data["body"] ?: run {
             logcat(LogPriority.ERROR) { "No body in message, abort" }
             return
         }
@@ -126,6 +129,18 @@ class HandlerService : FirebaseMessagingService() {
             logcat(LogPriority.ERROR) { "No message ID in message, abort" }
             return
         }
+
+        // AIR Chat: key-exchange messages are never shown; encrypted messages are decrypted on
+        // the device (or shown as a lock while their key has not arrived yet).
+        if (AirE2EE.isControl(rawBody)) {
+            MessageInterceptor.safeIncoming(
+                Message(id = messageId, channel = channelId, author = authorId, content = rawBody)
+            )
+            return
+        }
+        val body = MessageInterceptor.safeIncoming(
+            Message(id = messageId, channel = channelId, author = authorId, content = rawBody)
+        ).content ?: rawBody
 
         val messageTimestamp = ULID.asTimestamp(messageId)
 

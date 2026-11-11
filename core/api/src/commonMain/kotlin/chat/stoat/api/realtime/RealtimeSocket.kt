@@ -6,6 +6,9 @@ import chat.stoat.api.StoatAPIHost
 import chat.stoat.api.StoatHttp
 import chat.stoat.api.StoatJson
 import chat.stoat.api.internals.ActiveSlowmode
+import chat.stoat.api.internals.MessageInterceptor
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.JsonObject
 import chat.stoat.api.internals.elapsedRealtimeMillis
 import chat.stoat.api.realtime.frames.receivable.AnyFrame
 import chat.stoat.api.realtime.frames.receivable.BulkFrame
@@ -317,7 +320,9 @@ object RealtimeSocket {
             }
 
             "Message" -> {
-                val messageFrame = StoatJson.decodeFromString(MessageFrame.serializer(), rawFrame)
+                val messageFrame = MessageInterceptor.safeIncoming(
+                    StoatJson.decodeFromString(MessageFrame.serializer(), rawFrame)
+                )
                 Logger.d {
                     "Received message frame for ${messageFrame.id} in channel ${messageFrame.channel}."
                 }
@@ -370,6 +375,25 @@ object RealtimeSocket {
             "MessageUpdate" -> {
                 val messageUpdateFrame =
                     StoatJson.decodeFromString(MessageUpdateFrame.serializer(), rawFrame)
+                        .let { frame ->
+                            // AIR Chat: decrypt edited end-to-end encrypted content
+                            val newContent = (frame.data["content"] as? JsonPrimitive)
+                                ?.takeIf { it.isString }?.content
+                                ?: return@let frame
+                            val transformed = MessageInterceptor.safeIncoming(
+                                chat.stoat.core.model.schemas.Message(
+                                    id = frame.id,
+                                    channel = frame.channel,
+                                    author = (frame.data["author"] as? JsonPrimitive)?.content
+                                        ?: StoatAPI.messageCache[frame.id]?.author,
+                                    content = newContent
+                                )
+                            ).content
+                            if (transformed == null || transformed == newContent) frame
+                            else frame.copy(
+                                data = JsonObject(frame.data + ("content" to JsonPrimitive(transformed)))
+                            )
+                        }
                 Logger.d {
                     "Received message update frame for ${messageUpdateFrame.id} in channel ${messageUpdateFrame.channel}."
                 }

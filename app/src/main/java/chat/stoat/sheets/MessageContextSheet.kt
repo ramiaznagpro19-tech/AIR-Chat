@@ -1,5 +1,9 @@
 package chat.stoat.sheets
 
+import chat.stoat.shared.resources.ic_forum_24dp
+import chat.stoat.shared.resources.air_start_thread
+import chat.stoat.callbacks.ActionChannel
+import chat.stoat.callbacks.Action
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -394,6 +398,31 @@ fun MessageContextSheet(
                 showReactSheet = true
             }
         )
+
+        // AIR Chat: start a peer-to-peer thread from this message
+        message.channel?.let { channelId ->
+            SheetButton(
+                leadingContent = {
+                    Icon(
+                        painter = painterResource(Res.drawable.ic_forum_24dp),
+                        contentDescription = null
+                    )
+                },
+                headlineContent = {
+                    Text(
+                        text = stringResource(Res.string.air_start_thread),
+                    )
+                },
+                onClick = {
+                    coroutineScope.launch {
+                        onHideSheet()
+                        ActionChannel.send(
+                            Action.TopNavigate("channel/$channelId/threads?from=$messageId")
+                        )
+                    }
+                }
+            )
+        }
 
         if (message.author == StoatAPI.selfId) {
             SheetButton(
