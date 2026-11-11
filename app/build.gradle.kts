@@ -197,6 +197,8 @@ dependencies {
     implementation(libs.ktor.client.logging)
     implementation(libs.ktor.client.contentnegotiation)
     implementation(libs.ktor.client.okhttp)
+    // AIR Chat: direct WebSocket connections to the peer-to-peer rendezvous relays
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation(libs.ktor.serialization.kotlinx.json)
 
     implementation(libs.navigation.compose)
@@ -226,7 +228,6 @@ dependencies {
     implementation(libs.android.datastore)
     implementation(libs.android.datastore.preferences)
 
-    implementation(libs.hcaptcha)
 
     coreLibraryDesugaring(libs.desugar.jdk.libs)
 

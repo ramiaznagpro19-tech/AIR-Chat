@@ -10,7 +10,7 @@
     <!-- We temporarily don't use a dedicated splash screen theme due to Samsung specific issues.
          This theme is unused. -->
     <style name="Theme.Stoat.Starting" parent="Theme.SplashScreen">
-        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/air_splash</item>
         <item name="windowSplashScreenBackground">@color/splashscreen_background</item>
         <item name="postSplashScreenTheme">@style/Theme.Stoat</item>
     </style>

@@ -66,6 +66,7 @@ import androidx.core.view.WindowCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.compose.NavHost
+import chat.stoat.air.ui.AirApp
 import chat.stoat.screens.chat.AirThreadScreen
 import chat.stoat.screens.chat.AirThreadsScreen
 import androidx.navigation.navArgument
@@ -403,43 +404,11 @@ class MainActivity : AppCompatActivity() {
         window.statusBarColor = Color.Transparent.toArgb()
         WindowCompat.setDecorFitsSystemWindows(window, false)
 
-        StoatAPI.hydrateFromPersistentCache()
-
-        handleNavigationIntent(intent)
-
+        // AIR Chat: the app now runs on its own peer-to-peer network and accounts
+        // (no Stoat account, no captcha).
         setContent {
-            val windowSizeClass = calculateWindowSizeClass(this)
-            AppEntrypoint(
-                windowSizeClass,
-                viewModel.nextDestination.collectAsState().value,
-                viewModel.isConnected.collectAsState().value,
-                viewModel.activeAlert.collectAsState().value,
-                viewModel.isAlertActive.collectAsState().value,
-                viewModel.couldNotLogIn.collectAsState().value,
-                viewModel::logOut,
-                viewModel::onDismissHealthAlert,
-                viewModel::onDismissLoginError,
-                viewModel::checkLoggedInState,
-                viewModel::updateNextDestination
-            )
+            AirApp()
         }
-
-        val content: View = findViewById(android.R.id.content)
-        content.viewTreeObserver.addOnPreDrawListener(
-            object : ViewTreeObserver.OnPreDrawListener {
-                override fun onPreDraw(): Boolean {
-                    // Check whether the initial data is ready.
-                    return if (viewModel.isReady.value) {
-                        // The content is ready. Start drawing.
-                        content.viewTreeObserver.removeOnPreDrawListener(this)
-                        true
-                    } else {
-                        // The content isn't ready. Suspend.
-                        false
-                    }
-                }
-            }
-        )
     }
 
     override fun onProvideKeyboardShortcuts(

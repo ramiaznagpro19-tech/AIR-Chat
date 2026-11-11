@@ -50,10 +50,6 @@ import chat.stoat.shared.resources.register_password
 import chat.stoat.shared.resources.register_password_rules
 import chat.stoat.shared.resources.service_health_alert_body_default
 import chat.stoat.shared.resources.signup
-import com.hcaptcha.sdk.HCaptcha
-import com.hcaptcha.sdk.HCaptchaConfig
-import com.hcaptcha.sdk.HCaptchaSize
-import com.hcaptcha.sdk.HCaptchaTheme
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.getString
 import org.jetbrains.compose.resources.stringResource
@@ -64,42 +60,10 @@ class RegisterDetailsScreenViewModel : ViewModel() {
     var error by mutableStateOf<String?>(null)
     private var captchaToken by mutableStateOf<String?>(null)
 
+    // AIR Chat: captchas removed
+    @Suppress("UNUSED_PARAMETER")
     fun initCaptcha(context: Context, onSuccess: () -> Unit) {
-        viewModelScope.launch {
-            val root = try {
-                getRootRoute()
-            } catch (e: Exception) {
-                error = if (e.message?.startsWith("Expected response body of the type") == true) {
-                    getString(Res.string.service_health_alert_body_default)
-                } else e.message
-                return@launch
-            }
-
-            if (!root.features.captcha.enabled) {
-                onSuccess()
-                return@launch
-            }
-
-            val config = HCaptchaConfig.builder().apply {
-                siteKey(root.features.captcha.key)
-                theme(HCaptchaTheme.DARK)
-                size(HCaptchaSize.INVISIBLE)
-            }.build()
-
-            HCaptcha.getClient(context).apply {
-                addOnSuccessListener {
-                    captchaToken = it.tokenResult
-                    onSuccess()
-                }
-
-                addOnFailureListener {
-                    error = it.message
-                }
-
-                setup(config)
-                verifyWithHCaptcha()
-            }
-        }
+        onSuccess()
     }
 
     fun doRegistration(navController: NavController) {
