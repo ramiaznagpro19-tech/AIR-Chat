@@ -1320,4 +1320,6 @@
     <string name="airnet_call_screen">Partager l'écran</string>
     <string name="airnet_call_quality">Qualité</string>
     <string name="airnet_call_encrypted">Appel direct, chiffré de bout en bout</string>
+    <string name="airnet_join_owner_offline">Impossible de rejoindre : le propriétaire de ce serveur doit avoir AIR Chat ouvert pour vous faire entrer. Réessayez plus tard.</string>
+    <string name="airnet_uploads_unavailable">L'envoi de fichiers n'est pas encore disponible sur AIR Chat.</string>
 </resources>

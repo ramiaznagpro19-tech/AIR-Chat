@@ -7,6 +7,7 @@ import chat.stoat.api.StoatHttp
 import chat.stoat.api.StoatJson
 import chat.stoat.api.internals.ActiveSlowmode
 import chat.stoat.api.internals.MessageInterceptor
+import chat.stoat.api.internals.LocalBackend
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.JsonObject
 import chat.stoat.api.internals.elapsedRealtimeMillis
@@ -103,6 +104,35 @@ object RealtimeSocket {
     suspend fun connect(token: String, onReady: () -> Unit) {
         if (disconnectionState == DisconnectionState.Connected) {
             Logger.d { "Already connected to websocket. Refusing to connect again." }
+            return
+        }
+
+        // AIR Chat: embedded peer-to-peer backend
+        LocalBackend.realtime?.let { local ->
+            var localReady = false
+            try {
+                local(token) { frameString ->
+                    lastFrameAtElapsedRealtime = elapsedRealtimeMillis()
+                    try {
+                        val frameType =
+                            StoatJson.decodeFromString(AnyFrame.serializer(), frameString).type
+                        if (!localReady && isConnectionReadyFrame(frameType, frameString)) {
+                            localReady = true
+                            updateDisconnectionState(DisconnectionState.Connected)
+                            pushReconnectEvent()
+                            onReady()
+                        }
+                        handleFrame(frameType, frameString)
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        Logger.e(e) { "Failed to handle local frame: $frameString" }
+                    }
+                }
+            } finally {
+                lastFrameAtElapsedRealtime = null
+                updateDisconnectionState(DisconnectionState.Disconnected)
+            }
             return
         }
 

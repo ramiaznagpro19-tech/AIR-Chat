@@ -54,6 +54,8 @@ private class AppAPIPlatform(private val app: StoatApplication) : StoatAPIPlatfo
         )
 
         return OkHttp.create {
+            // AIR Chat: answer the interface's requests with the peer-to-peer backend
+            addInterceptor(chat.stoat.air.AirLocalServer.interceptor)
             addInterceptor(
                 ChuckerInterceptor.Builder(app)
                     .collector(chuckerCollector)

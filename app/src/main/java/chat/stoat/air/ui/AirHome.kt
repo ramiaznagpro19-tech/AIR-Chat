@@ -149,8 +149,8 @@ fun AirHome(onLogout: () -> Unit) {
     }
 }
 
-private fun encodeRoute(id: String) = java.net.URLEncoder.encode(id, "UTF-8")
-private fun decodeRoute(id: String) = java.net.URLDecoder.decode(id, "UTF-8")
+internal fun encodeRoute(id: String) = java.net.URLEncoder.encode(id, "UTF-8")
+internal fun decodeRoute(id: String) = java.net.URLDecoder.decode(id, "UTF-8")
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -565,7 +565,7 @@ private fun Composer(value: String, onValueChange: (String) -> Unit, onSend: () 
 // ----------------------------------------------------------------------------------------
 
 @Composable
-private fun AirThreadsListScreen(navController: NavController, rawId: String) {
+internal fun AirThreadsListScreen(navController: NavController, rawId: String) {
     val conversationId = decodeRoute(rawId)
     val allItems by AirNetwork.items.collectAsState()
     var tab by remember { mutableIntStateOf(0) }
@@ -693,7 +693,7 @@ private fun PostCard(post: AirItem, replyCount: Int, onClick: () -> Unit) {
 }
 
 @Composable
-private fun AirThreadDetailScreen(navController: NavController, rawId: String, itemId: String) {
+internal fun AirThreadDetailScreen(navController: NavController, rawId: String, itemId: String) {
     val conversationId = decodeRoute(rawId)
     val allItems by AirNetwork.items.collectAsState()
     val root = allItems[itemId]

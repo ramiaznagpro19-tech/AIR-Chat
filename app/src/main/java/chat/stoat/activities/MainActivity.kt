@@ -66,9 +66,6 @@ import androidx.core.view.WindowCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.compose.NavHost
-import chat.stoat.air.ui.AirApp
-import chat.stoat.screens.chat.AirThreadScreen
-import chat.stoat.screens.chat.AirThreadsScreen
 import androidx.navigation.navArgument
 import androidx.navigation.NavType
 import androidx.navigation.compose.composable
@@ -404,11 +401,45 @@ class MainActivity : AppCompatActivity() {
         window.statusBarColor = Color.Transparent.toArgb()
         WindowCompat.setDecorFitsSystemWindows(window, false)
 
-        // AIR Chat: the app now runs on its own peer-to-peer network and accounts
-        // (no Stoat account, no captcha).
+        StoatAPI.hydrateFromPersistentCache()
+
+        handleNavigationIntent(intent)
+
         setContent {
-            AirApp()
+            val windowSizeClass = calculateWindowSizeClass(this)
+            AppEntrypoint(
+                windowSizeClass,
+                viewModel.nextDestination.collectAsState().value,
+                viewModel.isConnected.collectAsState().value,
+                viewModel.activeAlert.collectAsState().value,
+                viewModel.isAlertActive.collectAsState().value,
+                viewModel.couldNotLogIn.collectAsState().value,
+                viewModel::logOut,
+                viewModel::onDismissHealthAlert,
+                viewModel::onDismissLoginError,
+                viewModel::checkLoggedInState,
+                viewModel::updateNextDestination
+            )
+            // AIR Chat: peer-to-peer calls (incoming and ongoing), above the whole interface
+            chat.stoat.air.ui.AirCallOverlay()
         }
+
+        val content: View = findViewById(android.R.id.content)
+        content.viewTreeObserver.addOnPreDrawListener(
+            object : ViewTreeObserver.OnPreDrawListener {
+                override fun onPreDraw(): Boolean {
+                    // Check whether the initial data is ready.
+                    return if (viewModel.isReady.value) {
+                        // The content is ready. Start drawing.
+                        content.viewTreeObserver.removeOnPreDrawListener(this)
+                        true
+                    } else {
+                        // The content isn't ready. Suspend.
+                        false
+                    }
+                }
+            }
+        )
     }
 
     override fun onProvideKeyboardShortcuts(
@@ -838,14 +869,21 @@ fun AppEntrypoint(
                         )
                     ) { backStackEntry ->
                         val channelId = backStackEntry.arguments?.getString("channelId") ?: ""
-                        val from = backStackEntry.arguments?.getString("from")
-                        AirThreadsScreen(navController, channelId, from)
+                        val conversationId = chat.stoat.air.AirLocalServer.conversationIdOfChannel(channelId)
+                        if (conversationId != null) {
+                            chat.stoat.air.ui.AirThreadsListScreen(
+                                navController,
+                                chat.stoat.air.ui.encodeRoute(conversationId)
+                            )
+                        }
                     }
 
-                    composable("channel/{channelId}/thread/{postId}") { backStackEntry ->
-                        val channelId = backStackEntry.arguments?.getString("channelId") ?: ""
-                        val postId = backStackEntry.arguments?.getString("postId") ?: ""
-                        AirThreadScreen(navController, channelId, postId)
+                    composable("thread/{id}/{item}") { backStackEntry ->
+                        chat.stoat.air.ui.AirThreadDetailScreen(
+                            navController,
+                            backStackEntry.arguments?.getString("id") ?: "",
+                            backStackEntry.arguments?.getString("item") ?: ""
+                        )
                     }
 
                     composable("about") { AboutScreen(navController) }

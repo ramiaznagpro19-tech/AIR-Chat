@@ -42,7 +42,20 @@ data class AirConversation(
     val name: String,
     val members: Set<String>,
     val createdAt: Long,
-)
+    /** "dm", "group", "server" or "channel" (a text channel of a server). */
+    val kind: String = if (isGroup) KIND_GROUP else KIND_DM,
+    /** For a server channel: the server conversation it belongs to. */
+    val parent: String? = null,
+    /** Creator of a group or server. */
+    val owner: String? = null,
+) {
+    companion object {
+        const val KIND_DM = "dm"
+        const val KIND_GROUP = "group"
+        const val KIND_SERVER = "server"
+        const val KIND_CHANNEL = "channel"
+    }
+}
 
 /**
  * A message, a thread/forum post or a reply. Items are signed by their author, so they can be
@@ -82,6 +95,10 @@ data class AirItem(
         const val THREAD = "thread"
         const val FORUM = "forum"
         const val REPLY = "reply"
+        const val EDIT = "edit"
+        const val DELETE = "delete"
+        const val REACT = "react"
+        const val UNREACT = "unreact"
 
         fun fromJson(json: JSONObject) = AirItem(
             id = json.getString("id"),
@@ -183,6 +200,9 @@ object AirNetwork {
         _items.value = emptyMap()
         _online.value = emptySet()
         _readUpTo.value = emptyMap()
+        _acks.value = emptyMap()
+        _names.value = emptyMap()
+        settings.clear()
     }
 
     // ------------------------------------------------------------------------------------
@@ -191,7 +211,47 @@ object AirNetwork {
 
     fun username(publicKey: String): String =
         if (publicKey == selfKey) selfUsername ?: publicKey.take(8)
-        else _contacts.value[publicKey]?.username ?: publicKey.take(8)
+        else _contacts.value[publicKey]?.username ?: _names.value[publicKey] ?: publicKey.take(8)
+
+    /** Usernames of people we are not friends with (members of groups and servers). */
+    private val _names = MutableStateFlow<Map<String, String>>(emptyMap())
+    val names: StateFlow<Map<String, String>> = _names.asStateFlow()
+    private val resolving = ConcurrentHashMap.newKeySet<String>()
+
+    /** Looks up, in the background, the usernames of accounts we do not know yet. */
+    fun resolveNames(keys: Collection<String>) {
+        val unknown = keys.filter {
+            it != selfKey && !_contacts.value.containsKey(it) && !_names.value.containsKey(it) && resolving.add(it)
+        }
+        if (unknown.isEmpty()) return
+        scope.launch {
+            try {
+                val events = NostrRelayPool.query(
+                    listOf(
+                        JSONObject()
+                            .put("kinds", JSONArray().put(AirAccount.USERNAME_KIND))
+                            .put("authors", JSONArray(unknown))
+                    )
+                )
+                val found = mutableMapOf<String, String>()
+                events.groupBy { it.pubkey }.forEach { (key, list) ->
+                    val name = list.minByOrNull { it.createdAt }
+                        ?.let { runCatching { JSONObject(it.content).optString("username") }.getOrNull() }
+                        ?.takeIf { AirAccount.isUsernameValid(it) } ?: return@forEach
+                    // the name only belongs to this account if its reservation is the oldest
+                    if (AirAccount.ownerOf(name) == key) found[key] = AirAccount.normalize(name)
+                }
+                if (found.isNotEmpty()) synchronized(lock) {
+                    _names.value = _names.value + found
+                    save()
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not resolve usernames", e)
+            } finally {
+                unknown.forEach { resolving.remove(it) }
+            }
+        }
+    }
 
     /** Adds a contact by username. Returns the contact, or null if the username does not exist. */
     suspend fun addContact(username: String): AirContact? {
@@ -260,10 +320,10 @@ object AirNetwork {
         title: String = "",
         tags: List<String> = emptyList(),
         parent: String? = null,
-    ) {
-        val current = session ?: return
+    ): AirItem? {
+        val current = session ?: return null
         val unsigned = AirItem(
-            id = "%013d".format(System.currentTimeMillis()) + AirCrypto.hex(AirCrypto.randomBytes(6)),
+            id = chat.stoat.api.internals.ULID.makeNext(),
             conversation = conversationId,
             author = current.publicKey,
             createdAt = System.currentTimeMillis(),
@@ -281,6 +341,167 @@ object AirNetwork {
         _conversations.value[conversationId]?.members?.forEach { member ->
             if (member != selfKey && peers[member]?.isOpen != true) sendHello(member)
         }
+        return item
+    }
+
+    // ------------------------------------------------------------------------------------
+    // Servers, groups and contacts
+    // ------------------------------------------------------------------------------------
+
+    private fun newConversationId(prefix: String) = prefix + ":" + AirCrypto.hex(AirCrypto.randomBytes(12))
+
+    private fun putConversation(conversation: AirConversation) {
+        synchronized(lock) {
+            _conversations.value = _conversations.value + (conversation.id to conversation)
+            save()
+        }
+    }
+
+    /** Sends a conversation to all its members (open peers now, the others by invitation). */
+    private fun shareConversation(conversation: AirConversation, only: Set<String>? = null) {
+        conversation.members.filter { it != selfKey && (only == null || it in only) }.forEach { member ->
+            val peer = peers[member]
+            if (peer?.isOpen == true) sendConversation(peer, conversation)
+            else sendSignal(member, JSONObject().put("t", "invite").put("conv", conversationJson(conversation)))
+        }
+    }
+
+    fun channelsOf(serverId: String): List<AirConversation> =
+        _conversations.value.values
+            .filter { it.kind == AirConversation.KIND_CHANNEL && it.parent == serverId }
+            .sortedBy { it.createdAt }
+
+    fun createServer(name: String): Pair<AirConversation, AirConversation> {
+        val me = selfKey ?: error("Not logged in")
+        val now = System.currentTimeMillis()
+        val server = AirConversation(
+            id = newConversationId("server"), isGroup = true, name = name.trim().take(64),
+            members = setOf(me), createdAt = now, kind = AirConversation.KIND_SERVER, owner = me
+        )
+        val general = AirConversation(
+            id = newConversationId("channel"), isGroup = true, name = "general",
+            members = setOf(me), createdAt = now + 1, kind = AirConversation.KIND_CHANNEL,
+            parent = server.id, owner = me
+        )
+        putConversation(server)
+        putConversation(general)
+        return server to general
+    }
+
+    fun createServerChannel(serverId: String, name: String): AirConversation? {
+        val server = _conversations.value[serverId] ?: return null
+        val me = selfKey ?: return null
+        if (server.owner != me) return null
+        val channel = AirConversation(
+            id = newConversationId("channel"), isGroup = true, name = name.trim().take(64),
+            members = server.members, createdAt = System.currentTimeMillis(),
+            kind = AirConversation.KIND_CHANNEL, parent = server.id, owner = me
+        )
+        putConversation(channel)
+        shareConversation(channel)
+        return channel
+    }
+
+    fun renameConversation(conversationId: String, name: String): AirConversation? {
+        val conversation = _conversations.value[conversationId] ?: return null
+        if (conversation.owner != null && conversation.owner != selfKey) return null
+        val renamed = conversation.copy(name = name.trim().take(64))
+        putConversation(renamed)
+        shareConversation(renamed)
+        return renamed
+    }
+
+    fun addMembers(conversationId: String, newMembers: Set<String>): AirConversation? {
+        val conversation = _conversations.value[conversationId] ?: return null
+        if (conversation.kind == AirConversation.KIND_DM) return null
+        val updated = conversation.copy(members = conversation.members + newMembers)
+        putConversation(updated)
+        shareConversation(updated)
+        if (conversation.kind == AirConversation.KIND_SERVER) {
+            channelsOf(conversation.id).forEach { channel ->
+                val c = channel.copy(members = channel.members + newMembers)
+                putConversation(c)
+                shareConversation(c)
+            }
+        }
+        return updated
+    }
+
+    /** Leaves (hides) a conversation on this device. */
+    fun leaveConversation(conversationId: String) {
+        synchronized(lock) {
+            val ids = setOf(conversationId) + channelsOf(conversationId).map { it.id }
+            _conversations.value = _conversations.value - ids
+            save()
+        }
+    }
+
+    fun removeContact(publicKey: String) {
+        synchronized(lock) {
+            _contacts.value = _contacts.value - publicKey
+            save()
+        }
+    }
+
+    // ---- Server invitations ----
+
+    /** Invitation code for a server: owner key + server id + name, so anyone can read it. */
+    fun inviteCode(serverId: String): String? {
+        val server = _conversations.value[serverId] ?: return null
+        val owner = server.owner ?: return null
+        val payload = Secp256k1.unhex(owner) + Secp256k1.unhex(serverId.substringAfter(':')) +
+                server.name.toByteArray(Charsets.UTF_8).take(40).toByteArray()
+        return AirCrypto.b64(payload)
+    }
+
+    data class InviteInfo(val owner: String, val serverId: String, val name: String)
+
+    fun parseInvite(code: String): InviteInfo? = runCatching {
+        val bytes = AirCrypto.unb64(code.trim())
+        require(bytes.size >= 44)
+        InviteInfo(
+            owner = Secp256k1.hex(bytes.copyOfRange(0, 32)),
+            serverId = "server:" + Secp256k1.hex(bytes.copyOfRange(32, 44)),
+            name = String(bytes.copyOfRange(44, bytes.size), Charsets.UTF_8)
+        )
+    }.getOrNull()
+
+    /** Asks the owner of a server to add this account. The owner must be online. */
+    fun requestJoin(invite: InviteInfo) {
+        sendSignal(invite.owner, JSONObject().put("t", "join").put("server", invite.serverId))
+    }
+
+    private fun onJoinRequest(from: String, serverId: String) {
+        val server = _conversations.value[serverId] ?: return
+        if (server.owner != selfKey || server.kind != AirConversation.KIND_SERVER) return
+        val updated = addMembers(serverId, setOf(from)) ?: return
+        // make sure the new member receives the server and every channel
+        shareConversation(updated, only = setOf(from))
+        channelsOf(serverId).forEach { shareConversation(it, only = setOf(from)) }
+    }
+
+    // ---- Read state ----
+
+    private val _acks = MutableStateFlow<Map<String, String>>(emptyMap())
+    val acks: StateFlow<Map<String, String>> = _acks.asStateFlow()
+
+    fun ack(conversationId: String, messageId: String) {
+        if ((_acks.value[conversationId] ?: "") >= messageId) return
+        synchronized(lock) {
+            _acks.value = _acks.value + (conversationId to messageId)
+            save()
+        }
+    }
+
+    // ---- Local settings (synced settings of the interface, kept on this device) ----
+
+    private val settings = ConcurrentHashMap<String, Pair<Long, String>>()
+
+    fun getSetting(key: String): Pair<Long, String>? = settings[key]
+
+    fun setSetting(key: String, timestamp: Long, value: String) {
+        settings[key] = timestamp to value
+        synchronized(lock) { save() }
     }
 
     fun markRead(conversationId: String) {
@@ -363,6 +584,7 @@ object AirNetwork {
                     "answer" -> onAnswer(from, json.getString("sid"), json.getString("sdp"))
                     "invite" -> json.optJSONObject("conv")?.let { mergeConversation(from, it) }
                     "call-offer", "call-answer", "call-end" -> AirCall.onSignal(from, json)
+                    "join" -> onJoinRequest(from, json.optString("server"))
                 }
             } catch (e: Exception) {
                 Log.w(TAG, "Signal handling failed", e)
@@ -582,7 +804,10 @@ object AirNetwork {
         synchronized(lock) {
             val existing = _conversations.value[incoming.id]
             if (existing != null && from !in existing.members) return
-            val merged = existing?.copy(members = existing.members + incoming.members) ?: incoming
+            val merged = existing?.copy(
+                members = existing.members + incoming.members,
+                name = if (existing.owner != null && from == existing.owner) incoming.name else existing.name
+            ) ?: incoming
             _conversations.value = _conversations.value + (merged.id to merged)
             save()
         }
@@ -646,6 +871,7 @@ object AirNetwork {
     private fun conversationJson(c: AirConversation) = JSONObject().apply {
         put("id", c.id); put("group", c.isGroup); put("name", c.name)
         put("members", JSONArray(c.members.toList())); put("createdAt", c.createdAt)
+        put("kind", c.kind); put("parent", c.parent ?: ""); put("owner", c.owner ?: "")
     }
 
     private fun conversationFromJson(json: JSONObject): AirConversation? = runCatching {
@@ -655,6 +881,9 @@ object AirNetwork {
             name = json.optString("name").take(64),
             members = json.getJSONArray("members").let { a -> (0 until a.length()).map { a.getString(it) }.toSet() },
             createdAt = json.optLong("createdAt"),
+            kind = json.optString("kind").ifEmpty { if (json.getBoolean("group")) AirConversation.KIND_GROUP else AirConversation.KIND_DM },
+            parent = json.optString("parent").ifEmpty { null },
+            owner = json.optString("owner").ifEmpty { null },
         )
     }.getOrNull()
 
@@ -676,6 +905,18 @@ object AirNetwork {
         json.optJSONObject("read")?.let { o ->
             _readUpTo.value = o.keys().asSequence().associateWith { o.getLong(it) }
         }
+        json.optJSONObject("names")?.let { o ->
+            _names.value = o.keys().asSequence().associateWith { o.getString(it) }
+        }
+        json.optJSONObject("acks")?.let { o ->
+            _acks.value = o.keys().asSequence().associateWith { o.getString(it) }
+        }
+        json.optJSONObject("settings")?.let { o ->
+            o.keys().forEach { k ->
+                val a = o.getJSONArray(k)
+                settings[k] = a.getLong(0) to a.getString(1)
+            }
+        }
     }
 
     private fun save() {
@@ -687,6 +928,11 @@ object AirNetwork {
         json.put("conversations", JSONArray().apply { _conversations.value.values.forEach { put(conversationJson(it)) } })
         json.put("items", JSONArray().apply { _items.value.values.sortedBy { it.createdAt }.forEach { put(it.toJson()) } })
         json.put("read", JSONObject(_readUpTo.value.mapValues { it.value }))
+        json.put("acks", JSONObject(_acks.value.mapValues { it.value }))
+        json.put("names", JSONObject(_names.value.mapValues { it.value }))
+        json.put("settings", JSONObject().apply {
+            settings.forEach { (k, v) -> put(k, JSONArray().put(v.first).put(v.second)) }
+        })
         runCatching { target.write(json.toString()) }.onFailure { Log.e(TAG, "Could not save", it) }
     }
 

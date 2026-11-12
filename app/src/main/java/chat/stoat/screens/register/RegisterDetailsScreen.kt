@@ -38,6 +38,14 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import chat.stoat.api.routes.account.RegistrationBody
 import chat.stoat.api.routes.account.register
+import chat.stoat.api.routes.account.negotiateAuthentication
+import chat.stoat.api.StoatAPI
+import chat.stoat.api.StoatAPIHost
+import chat.stoat.shared.resources.airnet_username
+import chat.stoat.shared.resources.airnet_username_rules
+import chat.stoat.shared.resources.airnet_rule_letters
+import chat.stoat.shared.resources.airnet_rule_digits
+import chat.stoat.shared.resources.airnet_rule_specials
 import chat.stoat.api.routes.misc.getRootRoute
 import chat.stoat.composables.generic.FormTextField
 import chat.stoat.shared.resources.Res
@@ -77,7 +85,23 @@ class RegisterDetailsScreenViewModel : ViewModel() {
             val result = register(body)
 
             if (result.ok) {
-                navController.navigate("register/verify/$email")
+                // AIR Chat: no e-mail to verify, log straight in with the new account
+                try {
+                    val hints = negotiateAuthentication(email, password).firstUserHints
+                    if (hints == null) {
+                        error = "?"
+                        return@launch
+                    }
+                    StoatAPIHost.storage.kvStorage.set("sessionToken", hints.token)
+                    StoatAPIHost.storage.kvStorage.set("sessionId", hints.id)
+                    StoatAPI.loginAs(hints.token)
+                    StoatAPI.setSessionId(hints.id)
+                    navController.navigate("chat") {
+                        popUpTo(0) { inclusive = true }
+                    }
+                } catch (e: Exception) {
+                    error = e.message
+                }
             } else {
                 error = result.unwrapError().type
             }
@@ -146,13 +170,13 @@ fun RegisterDetailsScreen(
                 FormTextField(
                     value = viewModel.email,
                     onChange = { viewModel.email = it },
-                    label = stringResource(Res.string.register_email),
-                    type = KeyboardType.Email,
+                    label = stringResource(Res.string.airnet_username),
+                    type = KeyboardType.Text,
                     action = ImeAction.Next,
                     modifier = Modifier.semantics { contentType = ContentType.EmailAddress }
                 )
                 Text(
-                    text = stringResource(Res.string.register_email_verification_hint),
+                    text = stringResource(Res.string.airnet_username_rules),
                     color = MaterialTheme.colorScheme.onBackground.copy(
                         alpha = 0.5f
                     ),
@@ -171,7 +195,9 @@ fun RegisterDetailsScreen(
                     modifier = Modifier.semantics { contentType = ContentType.NewPassword }
                 )
                 Text(
-                    text = stringResource(Res.string.register_password_rules),
+                    text = stringResource(Res.string.airnet_rule_letters) + " · " +
+                            stringResource(Res.string.airnet_rule_digits) + " · " +
+                            stringResource(Res.string.airnet_rule_specials),
                     color = MaterialTheme.colorScheme.onBackground.copy(
                         alpha = 0.5f
                     ),

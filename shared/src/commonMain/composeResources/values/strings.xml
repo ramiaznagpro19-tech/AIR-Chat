@@ -1483,4 +1483,6 @@
     <string name="airnet_call_screen">Share screen</string>
     <string name="airnet_call_quality">Quality</string>
     <string name="airnet_call_encrypted">Direct call, end-to-end encrypted</string>
+    <string name="airnet_join_owner_offline">Could not join: the owner of this server must have AIR Chat open to let you in. Try again later.</string>
+    <string name="airnet_uploads_unavailable">Sending files is not available yet on AIR Chat.</string>
 </resources>

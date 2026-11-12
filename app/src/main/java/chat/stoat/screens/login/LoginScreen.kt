@@ -55,6 +55,7 @@ import chat.stoat.persistence.KVStorage
 import chat.stoat.shared.resources.Res
 import chat.stoat.shared.resources.back
 import chat.stoat.shared.resources.email
+import chat.stoat.shared.resources.airnet_username
 import chat.stoat.shared.resources.hide_password
 import chat.stoat.shared.resources.ic_visibility_24dp
 import chat.stoat.shared.resources.ic_visibility_off_24dp
@@ -233,8 +234,9 @@ fun LoginScreen(navController: NavController, viewModel: LoginViewModel = koinVi
             ) {
                 FormTextField(
                     value = viewModel.email,
-                    label = stringResource(Res.string.email),
-                    type = KeyboardType.Email,
+                    // AIR Chat: accounts use a username instead of an e-mail address
+                    label = stringResource(Res.string.airnet_username),
+                    type = KeyboardType.Text,
                     action = ImeAction.Next,
                     onChange = viewModel::setEmail,
                     modifier = Modifier
@@ -280,11 +282,6 @@ fun LoginScreen(navController: NavController, viewModel: LoginViewModel = koinVi
                     }
                 )
 
-                Weblink(
-                    text = stringResource(Res.string.password_forgot),
-                    url = "$STOAT_WEB_APP/login/reset",
-                    modifier = Modifier.padding(vertical = 7.dp)
-                )
 
                 if (viewModel.error != null) {
                     Text(
@@ -306,13 +303,6 @@ fun LoginScreen(navController: NavController, viewModel: LoginViewModel = koinVi
                 .fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Weblink(
-                text = stringResource(Res.string.resend_verification),
-                url = "$STOAT_WEB_APP/login/resend",
-                modifier = Modifier
-                    .padding(vertical = 7.dp)
-                    .testTag("resend_verification_link")
-            )
 
             Spacer(modifier = Modifier.height(10.dp))
 

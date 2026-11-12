@@ -89,6 +89,8 @@ class SettingsScreenViewModel(
             kvStorage.remove("selfAvatarUrl")
             LoadedSettings.reset()
             StoatAPI.logout()
+            // AIR Chat: close the account and the peer-to-peer network
+            chat.stoat.air.AirLocalServer.onLogout()
         }
     }
 }

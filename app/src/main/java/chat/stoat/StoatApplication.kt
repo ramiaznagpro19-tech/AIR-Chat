@@ -12,6 +12,7 @@ import chat.stoat.p2p.AirP2P
 import chat.stoat.air.AirAccount
 import chat.stoat.air.AirNetwork
 import chat.stoat.air.AirCall
+import chat.stoat.air.AirLocalServer
 import co.touchlab.kermit.Logger
 import co.touchlab.kermit.Severity
 import coil3.ImageLoader
@@ -59,6 +60,11 @@ class StoatApplication : Application(), SingletonImageLoader.Factory {
         AirAccount.install(this)
         AirNetwork.install(this)
         AirCall.install(this)
+        // AIR Chat: the interface runs on the built-in peer-to-peer backend. The network layer
+        // already encrypts and signs everything end to end, so messages are not transformed again.
+        AirLocalServer.install()
+        chat.stoat.api.internals.MessageInterceptor.incoming = { it }
+        chat.stoat.api.internals.MessageInterceptor.outgoing = { _, content -> content }
 
         RealtimeConnectionMonitor(this).start()
 
