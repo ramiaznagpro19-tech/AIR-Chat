@@ -2,7 +2,7 @@ package chat.stoat.screens.chat.views
 
 import chat.stoat.shared.resources.airdisc_title
 import chat.stoat.shared.resources.airdisc_intro
-android.content.Intent
+import android.content.Intent
 import android.util.Log
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility

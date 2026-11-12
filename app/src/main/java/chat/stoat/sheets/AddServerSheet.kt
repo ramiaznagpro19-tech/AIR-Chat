@@ -3,7 +3,7 @@ package chat.stoat.sheets
 import chat.stoat.air.ui.AirImagePicker
 import chat.stoat.air.ui.uploadPickedImage
 import chat.stoat.api.routes.server.patchServer
-android.content.Intent
+import android.content.Intent
 import android.util.Log
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateContentSize

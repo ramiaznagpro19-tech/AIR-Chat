@@ -1,7 +1,7 @@
 package chat.stoat.screens.settings
 
 import chat.stoat.shared.resources.airdisc_title
-android.content.Intent
+import android.content.Intent
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
