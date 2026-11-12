@@ -786,7 +786,7 @@ object AirLocalServer {
                 put("type", "Server"); put("code", code)
                 put("server_id", serverId(invite.serverId)); put("server_name", invite.name)
                 put("channel_id", ""); put("channel_name", "general")
-                put("user_name", AirNetwork.username(invite.owner))
+                put("user_name", invite.name)
                 put("member_count", AirNetwork.conversations.value[invite.serverId]?.members?.size ?: 1)
             })
 
