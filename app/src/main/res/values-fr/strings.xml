@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="air_service_running">Connecté à vos contacts (pair-à-pair)</string>
+    <string name="air_channel_status">Connexion AIR Chat</string>
+    <string name="air_channel_messages">Messages</string>
+</resources>

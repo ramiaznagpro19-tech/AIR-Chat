@@ -100,8 +100,9 @@ object VoiceCallManager {
 
     fun openSheet(channelId: String) {
         // AIR Chat: calls in direct messages go straight from phone to phone
-        chat.stoat.air.AirLocalServer.peerOfChannel(channelId)?.let { peer ->
-            chat.stoat.air.AirCall.start(peer, video = false)
+        // (direct messages, groups and server channels)
+        chat.stoat.air.AirLocalServer.conversationIdOfChannel(channelId)?.let { conversationId ->
+            chat.stoat.air.AirCall.start(conversationId, video = false)
             return
         }
         requestedChannelId = channelId

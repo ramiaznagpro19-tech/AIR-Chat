@@ -48,6 +48,8 @@ data class AirConversation(
     val parent: String? = null,
     /** Creator of a group or server. */
     val owner: String? = null,
+    /** For a server: private key of its invitations, known by every member. */
+    val secret: String? = null,
 ) {
     companion object {
         const val KIND_DM = "dm"
@@ -180,6 +182,8 @@ object AirNetwork {
                     .put("since", System.currentTimeMillis() / 1000 - 30)
             )
         ) { onSignalEvent(it) }
+        refreshInviteSubscriptions()
+        AirNetworkService.start(appContext)
         helloJob = scope.launch {
             while (isActive) {
                 helloEveryone()
@@ -190,6 +194,9 @@ object AirNetwork {
 
     fun stop() {
         helloJob?.cancel()
+        inviteSubscriptions.values.forEach { NostrRelayPool.unsubscribe(it) }
+        inviteSubscriptions.clear()
+        if (::appContext.isInitialized) AirNetworkService.stop(appContext)
         subscriptionId?.let { NostrRelayPool.unsubscribe(it) }
         subscriptionId = null
         peers.keys.toList().forEach { closePeer(it) }
@@ -202,6 +209,8 @@ object AirNetwork {
         _readUpTo.value = emptyMap()
         _acks.value = emptyMap()
         _names.value = emptyMap()
+        _profiles.value = emptyMap()
+        fileMetas.clear()
         settings.clear()
     }
 
@@ -355,6 +364,7 @@ object AirNetwork {
             _conversations.value = _conversations.value + (conversation.id to conversation)
             save()
         }
+        if (conversation.kind == AirConversation.KIND_SERVER) refreshInviteSubscriptions()
     }
 
     /** Sends a conversation to all its members (open peers now, the others by invitation). */
@@ -376,7 +386,8 @@ object AirNetwork {
         val now = System.currentTimeMillis()
         val server = AirConversation(
             id = newConversationId("server"), isGroup = true, name = name.trim().take(64),
-            members = setOf(me), createdAt = now, kind = AirConversation.KIND_SERVER, owner = me
+            members = setOf(me), createdAt = now, kind = AirConversation.KIND_SERVER, owner = me,
+            secret = Secp256k1.hex(Secp256k1.randomPrivateKey())
         )
         val general = AirConversation(
             id = newConversationId("channel"), isGroup = true, name = "general",
@@ -445,39 +456,281 @@ object AirNetwork {
 
     // ---- Server invitations ----
 
-    /** Invitation code for a server: owner key + server id + name, so anyone can read it. */
+    /**
+     * Invitation code for a server: the public key of its invitations + server id + name.
+     * Any member online can let the person in, since every member knows the matching key.
+     */
     fun inviteCode(serverId: String): String? {
-        val server = _conversations.value[serverId] ?: return null
-        val owner = server.owner ?: return null
-        val payload = Secp256k1.unhex(owner) + Secp256k1.unhex(serverId.substringAfter(':')) +
+        var server = _conversations.value[serverId] ?: return null
+        if (server.secret == null) {
+            if (server.owner != selfKey) return null
+            server = server.copy(secret = Secp256k1.hex(Secp256k1.randomPrivateKey()))
+            putConversation(server)
+            shareConversation(server)
+        }
+        val invitePublic = Secp256k1.publicKey(Secp256k1.unhex(server.secret!!))
+        val payload = invitePublic + Secp256k1.unhex(serverId.substringAfter(':')) +
                 server.name.toByteArray(Charsets.UTF_8).take(40).toByteArray()
         return AirCrypto.b64(payload)
     }
 
-    data class InviteInfo(val owner: String, val serverId: String, val name: String)
+    data class InviteInfo(val inviteKey: String, val serverId: String, val name: String)
 
     fun parseInvite(code: String): InviteInfo? = runCatching {
         val bytes = AirCrypto.unb64(code.trim())
         require(bytes.size >= 44)
         InviteInfo(
-            owner = Secp256k1.hex(bytes.copyOfRange(0, 32)),
+            inviteKey = Secp256k1.hex(bytes.copyOfRange(0, 32)),
             serverId = "server:" + Secp256k1.hex(bytes.copyOfRange(32, 44)),
             name = String(bytes.copyOfRange(44, bytes.size), Charsets.UTF_8)
         )
     }.getOrNull()
 
-    /** Asks the owner of a server to add this account. The owner must be online. */
+    /** Asks the members of a server to add this account. One of them must be online. */
     fun requestJoin(invite: InviteInfo) {
-        sendSignal(invite.owner, JSONObject().put("t", "join").put("server", invite.serverId))
+        sendSignal(invite.inviteKey, JSONObject().put("t", "join").put("server", invite.serverId))
     }
 
     private fun onJoinRequest(from: String, serverId: String) {
         val server = _conversations.value[serverId] ?: return
-        if (server.owner != selfKey || server.kind != AirConversation.KIND_SERVER) return
+        if (server.kind != AirConversation.KIND_SERVER || selfKey !in server.members) return
         val updated = addMembers(serverId, setOf(from)) ?: return
         // make sure the new member receives the server and every channel
         shareConversation(updated, only = setOf(from))
         channelsOf(serverId).forEach { shareConversation(it, only = setOf(from)) }
+    }
+
+    /** Invitation keys of the servers we are in, to receive join requests. */
+    private val inviteSubscriptions = ConcurrentHashMap<String, String>()
+
+    private fun refreshInviteSubscriptions() {
+        if (session == null) return
+        val wanted = _conversations.value.values
+            .filter { it.kind == AirConversation.KIND_SERVER && it.secret != null }
+            .associate { Secp256k1.hex(Secp256k1.publicKey(Secp256k1.unhex(it.secret!!))) to it.secret!! }
+        (inviteSubscriptions.keys - wanted.keys).forEach { key ->
+            inviteSubscriptions.remove(key)?.let { NostrRelayPool.unsubscribe(it) }
+        }
+        (wanted.keys - inviteSubscriptions.keys).forEach { invitePublic ->
+            inviteSubscriptions[invitePublic] = NostrRelayPool.subscribe(
+                listOf(
+                    JSONObject()
+                        .put("kinds", JSONArray().put(SIGNAL_KIND))
+                        .put("#p", JSONArray().put(invitePublic))
+                        .put("since", System.currentTimeMillis() / 1000 - 30)
+                )
+            ) { event -> onInviteSignal(event, invitePublic, wanted[invitePublic]!!) }
+        }
+    }
+
+    private fun onInviteSignal(event: NostrEvent, invitePublic: String, invitePrivate: String) {
+        if (!handledSignals.add(event.id)) return
+        if (System.currentTimeMillis() / 1000 - event.createdAt > 120) return
+        val from = event.pubkey
+        if (from == selfKey) return
+        val json = try {
+            val shared = Secp256k1.sharedSecret(Secp256k1.unhex(invitePrivate), Secp256k1.unhex(from))
+            val key = AirCrypto.hkdf(shared, "AIR Chat".toByteArray(), "AIR Chat signalling v1")
+            JSONObject(String(AirCrypto.open(key, AirCrypto.unb64(event.content), "S|$invitePublic")))
+        } catch (e: Exception) {
+            return
+        }
+        if (json.optString("t") != "join") return
+        scope.launch {
+            rememberSender(from, json.optString("from_name"))
+            onJoinRequest(from, json.optString("server"))
+        }
+    }
+
+    // ---- Profiles (display name and avatar, shared directly with connected peers) ----
+
+    data class Profile(val displayName: String?, val avatar: String?, val updatedAt: Long)
+
+    private val _profiles = MutableStateFlow<Map<String, Profile>>(emptyMap())
+    val profiles: StateFlow<Map<String, Profile>> = _profiles.asStateFlow()
+
+    fun ownProfile(): Profile = selfKey?.let { _profiles.value[it] } ?: Profile(null, null, 0)
+
+    fun updateOwnProfile(displayName: String?, avatar: String?) {
+        val me = selfKey ?: return
+        val profile = Profile(displayName?.trim()?.take(32)?.ifBlank { null }, avatar, System.currentTimeMillis())
+        synchronized(lock) {
+            _profiles.value = _profiles.value + (me to profile)
+            save()
+        }
+        peers.values.filter { it.isOpen }.forEach { sendProfile(it) }
+    }
+
+    private fun profileJson(p: Profile) = JSONObject().apply {
+        put("displayName", p.displayName ?: ""); put("avatar", p.avatar ?: ""); put("updatedAt", p.updatedAt)
+        p.avatar?.let { id -> fileMeta(id)?.let { put("avatarMeta", it.toJson()) } }
+    }
+
+    private fun profileFromJson(json: JSONObject) = Profile(
+        displayName = json.optString("displayName").take(32).ifBlank { null },
+        avatar = json.optString("avatar").ifBlank { null },
+        updatedAt = json.optLong("updatedAt"),
+    )
+
+    private fun sendProfile(peer: Peer) {
+        val own = selfKey?.let { _profiles.value[it] } ?: return
+        send(peer, JSONObject().put("t", "profile").put("profile", profileJson(own)))
+    }
+
+    private fun onProfile(peer: Peer, json: JSONObject) {
+        val incoming = profileFromJson(json)
+        json.optJSONObject("avatarMeta")?.let { meta -> runCatching { rememberFileMeta(FileMeta.fromJson(meta)) } }
+        val current = _profiles.value[peer.publicKey]
+        if (current != null && current.updatedAt >= incoming.updatedAt) return
+        synchronized(lock) {
+            _profiles.value = _profiles.value + (peer.publicKey to incoming)
+            save()
+        }
+        incoming.avatar?.let { id -> if (!hasFile(id)) requestFile(id) }
+    }
+
+    // ---- Files (attachments and avatars), sent directly between phones ----
+
+    data class FileMeta(
+        val id: String,
+        val tag: String,
+        val filename: String,
+        val contentType: String,
+        val size: Long,
+        val width: Int?,
+        val height: Int?,
+        val sha256: String,
+    ) {
+        fun toJson(): JSONObject = JSONObject().apply {
+            put("id", id); put("tag", tag); put("filename", filename); put("contentType", contentType)
+            put("size", size); width?.let { put("width", it) }; height?.let { put("height", it) }
+            put("sha256", sha256)
+        }
+
+        companion object {
+            fun fromJson(json: JSONObject) = FileMeta(
+                id = json.getString("id"),
+                tag = json.optString("tag", "attachments"),
+                filename = json.optString("filename", "file").take(128),
+                contentType = json.optString("contentType", "application/octet-stream"),
+                size = json.optLong("size"),
+                width = if (json.has("width")) json.optInt("width") else null,
+                height = if (json.has("height")) json.optInt("height") else null,
+                sha256 = json.getString("sha256"),
+            )
+        }
+    }
+
+    const val MAX_FILE_SIZE = 25L * 1024 * 1024
+    private const val CHUNK_SIZE = 16 * 1024
+
+    private val fileMetas = ConcurrentHashMap<String, FileMeta>()
+    private val _filesVersion = MutableStateFlow(0)
+    val filesVersion: StateFlow<Int> = _filesVersion.asStateFlow()
+
+    private fun filesDir() = java.io.File(appContext.filesDir, "air_files").apply { mkdirs() }
+    private fun fileOf(id: String) = java.io.File(filesDir(), id.filter { it.isLetterOrDigit() })
+
+    fun fileMeta(id: String): FileMeta? = fileMetas[id]
+    fun hasFile(id: String): Boolean = fileOf(id).exists()
+    fun fileBytes(id: String): ByteArray? = fileOf(id).takeIf { it.exists() }?.readBytes()
+
+    private fun rememberFileMeta(meta: FileMeta) {
+        if (fileMetas.putIfAbsent(meta.id, meta) == null) synchronized(lock) { save() }
+    }
+
+    /** Stores a file chosen on this phone and returns its description. */
+    fun storeFile(tag: String, filename: String, contentType: String, bytes: ByteArray): FileMeta {
+        require(bytes.size <= MAX_FILE_SIZE) { "File too large" }
+        val id = chat.stoat.api.internals.ULID.makeNext()
+        var width: Int? = null
+        var height: Int? = null
+        if (contentType.startsWith("image/")) {
+            val options = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
+            if (options.outWidth > 0) {
+                width = options.outWidth
+                height = options.outHeight
+            }
+        }
+        val meta = FileMeta(
+            id, tag, filename.take(128), contentType, bytes.size.toLong(), width, height,
+            AirCrypto.hex(AirCrypto.sha256(bytes))
+        )
+        fileOf(id).writeBytes(bytes)
+        fileMetas[id] = meta
+        synchronized(lock) { save() }
+        return meta
+    }
+
+    /** Message attachments are carried in the message as "f:" tags. */
+    fun attachmentsOf(item: AirItem): List<FileMeta> = item.tags.filter { it.startsWith("f:") }.mapNotNull {
+        runCatching { FileMeta.fromJson(JSONObject(it.removePrefix("f:"))) }.getOrNull()
+    }
+
+    private val wantedFiles = ConcurrentHashMap<String, Long>()
+    private val incomingParts = ConcurrentHashMap<String, Array<ByteArray?>>()
+
+    /** Asks connected peers for a file we do not have. */
+    fun requestFile(id: String) {
+        val now = System.currentTimeMillis()
+        if (now - (wantedFiles[id] ?: 0L) < 10_000) return
+        wantedFiles[id] = now
+        peers.values.filter { it.isOpen }.forEach { send(it, JSONObject().put("t", "fget").put("id", id)) }
+    }
+
+    /** Waits (up to [timeoutMs]) for a file to arrive from a peer. */
+    suspend fun awaitFile(id: String, timeoutMs: Long = 20_000): ByteArray? {
+        fileBytes(id)?.let { return it }
+        requestFile(id)
+        return withTimeoutOrNull(timeoutMs) {
+            while (!hasFile(id)) {
+                delay(300)
+                requestFile(id)
+            }
+            fileBytes(id)
+        }
+    }
+
+    private fun onFileRequest(peer: Peer, id: String) {
+        val file = fileOf(id)
+        if (!file.exists()) return
+        val meta = fileMetas[id]
+        scope.launch {
+            val bytes = file.readBytes()
+            val total = (bytes.size + CHUNK_SIZE - 1) / CHUNK_SIZE
+            for (index in 0 until maxOf(total, 1)) {
+                val channel = peer.channel ?: return@launch
+                while (channel.bufferedAmount() > 2L * 1024 * 1024) delay(50)
+                val part = bytes.copyOfRange(index * CHUNK_SIZE, minOf(bytes.size, (index + 1) * CHUNK_SIZE))
+                send(peer, JSONObject().apply {
+                    put("t", "fpart"); put("id", id); put("i", index); put("n", maxOf(total, 1))
+                    put("d", AirCrypto.b64(part))
+                    if (index == 0 && meta != null) put("meta", meta.toJson())
+                })
+            }
+        }
+    }
+
+    private fun onFilePart(json: JSONObject) {
+        val id = json.getString("id")
+        if (hasFile(id)) return
+        json.optJSONObject("meta")?.let { runCatching { rememberFileMeta(FileMeta.fromJson(it)) } }
+        val total = json.getInt("n")
+        if (total <= 0 || total > MAX_FILE_SIZE / CHUNK_SIZE + 1) return
+        val parts = incomingParts.getOrPut(id) { arrayOfNulls(total) }
+        if (parts.size != total) return
+        val index = json.getInt("i")
+        if (index !in 0 until total) return
+        parts[index] = AirCrypto.unb64(json.getString("d"))
+        if (parts.any { it == null }) return
+        incomingParts.remove(id)
+        val bytes = java.io.ByteArrayOutputStream().apply { parts.forEach { write(it!!) } }.toByteArray()
+        val expected = fileMetas[id]?.sha256
+        // without a known hash we cannot check the file: ignore it
+        if (expected == null || AirCrypto.hex(AirCrypto.sha256(bytes)) != expected) return
+        fileOf(id).writeBytes(bytes)
+        _filesVersion.value = _filesVersion.value + 1
     }
 
     // ---- Read state ----
@@ -523,6 +776,15 @@ object AirNetwork {
         val shared = Secp256k1.sharedSecret(current.privateKey, Secp256k1.unhex(other))
         return AirCrypto.hkdf(shared, "AIR Chat".toByteArray(), "AIR Chat signalling v1")
     }
+
+    /** Sends a call message to a peer, directly if connected, otherwise through signalling. */
+    internal fun sendCallMessage(to: String, payload: JSONObject) {
+        val peer = peers[to]
+        if (peer?.isOpen == true) send(peer, JSONObject().put("t", "call").put("call", payload))
+        else sendSignal(to, payload)
+    }
+
+    fun isConnected(publicKey: String) = peers[publicKey]?.isOpen == true
 
     internal fun sendSignal(to: String, payload: JSONObject) {
         val current = session ?: return
@@ -583,7 +845,8 @@ object AirNetwork {
                     "offer" -> onOffer(from, json.getString("sid"), json.getString("sdp"))
                     "answer" -> onAnswer(from, json.getString("sid"), json.getString("sdp"))
                     "invite" -> json.optJSONObject("conv")?.let { mergeConversation(from, it) }
-                    "call-offer", "call-answer", "call-end" -> AirCall.onSignal(from, json)
+                    "call-ring", "call-join", "call-roster", "call-offer", "call-answer",
+                    "call-leave", "call-busy" -> AirCall.onSignal(from, json)
                     "join" -> onJoinRequest(from, json.optString("server"))
                 }
             } catch (e: Exception) {
@@ -739,6 +1002,10 @@ object AirNetwork {
 
     private fun onPeerOpen(peer: Peer) {
         _online.value = _online.value + peer.publicKey
+        sendProfile(peer)
+        // files we are still waiting for
+        fileMetas.keys.filter { !hasFile(it) && wantedFiles.containsKey(it) }
+            .forEach { send(peer, JSONObject().put("t", "fget").put("id", it)) }
         _conversations.value.values
             .filter { peer.publicKey in it.members }
             .forEach { conversation ->
@@ -755,6 +1022,10 @@ object AirNetwork {
 
     private fun onData(peer: Peer, json: JSONObject) {
         when (json.optString("t")) {
+            "profile" -> json.optJSONObject("profile")?.let { onProfile(peer, it) }
+            "fget" -> onFileRequest(peer, json.optString("id"))
+            "fpart" -> onFilePart(json)
+            "call" -> AirCall.onSignal(peer.publicKey, json.getJSONObject("call"))
             "conv" -> json.optJSONObject("conv")?.let { raw ->
                 mergeConversation(peer.publicKey, raw)
                 conversationFromJson(raw)?.let { c ->
@@ -806,12 +1077,14 @@ object AirNetwork {
             if (existing != null && from !in existing.members) return
             val merged = existing?.copy(
                 members = existing.members + incoming.members,
-                name = if (existing.owner != null && from == existing.owner) incoming.name else existing.name
+                name = if (existing.owner != null && from == existing.owner) incoming.name else existing.name,
+                secret = existing.secret ?: incoming.secret
             ) ?: incoming
             _conversations.value = _conversations.value + (merged.id to merged)
             save()
         }
         incoming.members.filter { it != selfKey && peers[it]?.isOpen != true }.forEach { sendHello(it) }
+        if (incoming.kind == AirConversation.KIND_SERVER) refreshInviteSubscriptions()
     }
 
     private fun sendConversation(peer: Peer, conversation: AirConversation) {
@@ -857,6 +1130,14 @@ object AirNetwork {
         _items.value.values.filter { it.conversation == conversationId }.map { it.id }
 
     private fun addItems(list: List<AirItem>): List<AirItem> {
+        list.forEach { item ->
+            attachmentsOf(item).forEach { meta ->
+                rememberFileMeta(meta)
+                if (item.author != selfKey && !hasFile(meta.id) && meta.size <= 10L * 1024 * 1024) {
+                    scope.launch { delay(500); requestFile(meta.id) }
+                }
+            }
+        }
         synchronized(lock) {
             val current = _items.value
             val added = list.filter { it.id !in current }
@@ -872,6 +1153,7 @@ object AirNetwork {
         put("id", c.id); put("group", c.isGroup); put("name", c.name)
         put("members", JSONArray(c.members.toList())); put("createdAt", c.createdAt)
         put("kind", c.kind); put("parent", c.parent ?: ""); put("owner", c.owner ?: "")
+        put("secret", c.secret ?: "")
     }
 
     private fun conversationFromJson(json: JSONObject): AirConversation? = runCatching {
@@ -884,6 +1166,7 @@ object AirNetwork {
             kind = json.optString("kind").ifEmpty { if (json.getBoolean("group")) AirConversation.KIND_GROUP else AirConversation.KIND_DM },
             parent = json.optString("parent").ifEmpty { null },
             owner = json.optString("owner").ifEmpty { null },
+            secret = json.optString("secret").ifEmpty { null },
         )
     }.getOrNull()
 
@@ -904,6 +1187,12 @@ object AirNetwork {
         }
         json.optJSONObject("read")?.let { o ->
             _readUpTo.value = o.keys().asSequence().associateWith { o.getLong(it) }
+        }
+        json.optJSONObject("profiles")?.let { o ->
+            _profiles.value = o.keys().asSequence().associateWith { profileFromJson(o.getJSONObject(it)) }
+        }
+        json.optJSONArray("files")?.let { a ->
+            for (i in 0 until a.length()) runCatching { FileMeta.fromJson(a.getJSONObject(i)) }.getOrNull()?.let { fileMetas[it.id] = it }
         }
         json.optJSONObject("names")?.let { o ->
             _names.value = o.keys().asSequence().associateWith { o.getString(it) }
@@ -930,6 +1219,8 @@ object AirNetwork {
         json.put("read", JSONObject(_readUpTo.value.mapValues { it.value }))
         json.put("acks", JSONObject(_acks.value.mapValues { it.value }))
         json.put("names", JSONObject(_names.value.mapValues { it.value }))
+        json.put("profiles", JSONObject().apply { _profiles.value.forEach { (k, v) -> put(k, profileJson(v).apply { remove("avatarMeta") }) } })
+        json.put("files", JSONArray().apply { fileMetas.values.forEach { put(it.toJson()) } })
         json.put("settings", JSONObject().apply {
             settings.forEach { (k, v) -> put(k, JSONArray().put(v.first).put(v.second)) }
         })

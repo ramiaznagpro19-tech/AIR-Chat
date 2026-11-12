@@ -63,6 +63,7 @@ class StoatApplication : Application(), SingletonImageLoader.Factory {
         // AIR Chat: the interface runs on the built-in peer-to-peer backend. The network layer
         // already encrypts and signs everything end to end, so messages are not transformed again.
         AirLocalServer.install()
+        chat.stoat.air.AirNetworkService.trackVisibility(this)
         chat.stoat.api.internals.MessageInterceptor.incoming = { it }
         chat.stoat.api.internals.MessageInterceptor.outgoing = { _, content -> content }
 
@@ -89,6 +90,18 @@ class StoatApplication : Application(), SingletonImageLoader.Factory {
     override fun newImageLoader(context: Context): ImageLoader {
         return ImageLoader.Builder(context)
             .crossfade(true)
+            // AIR Chat: images (avatars, attachments) come from the peer-to-peer backend
+            .components {
+                add(
+                    coil3.network.okhttp.OkHttpNetworkFetcherFactory(
+                        callFactory = {
+                            okhttp3.OkHttpClient.Builder()
+                                .addInterceptor(AirLocalServer.interceptor)
+                                .build()
+                        }
+                    )
+                )
+            }
             .build()
     }
 

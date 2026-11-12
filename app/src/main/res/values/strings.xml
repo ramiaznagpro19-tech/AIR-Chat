@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name" translatable="false">AIR Chat</string>
+    <string name="air_service_running">Connected to your contacts (peer-to-peer)</string>
+    <string name="air_channel_status">AIR Chat connection</string>
+    <string name="air_channel_messages">Messages</string>
 </resources>

@@ -16,7 +16,26 @@ import javax.crypto.spec.GCMParameterSpec
  * Android Keystore.
  */
 class AirVault(context: Context, private val fileName: String) {
-    private val file = File(File(context.filesDir, "air_chat").apply { mkdirs() }, fileName)
+    private val dir = File(context.filesDir, "air_chat").apply { mkdirs() }
+    private val file = File(dir, fileName)
+    private val fallbackKeyFile = File(context.noBackupFilesDir, "air_chat_fallback.key")
+
+    /**
+     * Some emulators (BlueStacks, …) have a broken Android Keystore. There, a key stored in the
+     * app's private storage is used instead.
+     */
+    private fun fallbackKey(): SecretKey = synchronized(LOCK) {
+        if (!fallbackKeyFile.exists()) {
+            fallbackKeyFile.writeBytes(AirCrypto.randomBytes(32))
+        }
+        javax.crypto.spec.SecretKeySpec(fallbackKeyFile.readBytes(), "AES")
+    }
+
+    private fun keyOrFallback(): SecretKey = try {
+        masterKey()
+    } catch (e: Exception) {
+        fallbackKey()
+    }
 
     private fun masterKey(): SecretKey {
         val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
@@ -42,9 +61,16 @@ class AirVault(context: Context, private val fileName: String) {
         return try {
             val bytes = file.readBytes()
             val iv = bytes.copyOfRange(0, 12)
-            val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-            cipher.init(Cipher.DECRYPT_MODE, masterKey(), GCMParameterSpec(128, iv))
-            String(cipher.doFinal(bytes, 12, bytes.size - 12), Charsets.UTF_8)
+            fun decryptWith(key: SecretKey): String {
+                val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+                cipher.init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(128, iv))
+                return String(cipher.doFinal(bytes, 12, bytes.size - 12), Charsets.UTF_8)
+            }
+            try {
+                decryptWith(masterKey())
+            } catch (e: Exception) {
+                decryptWith(fallbackKey())
+            }
         } catch (e: Exception) {
             null
         }
@@ -52,9 +78,15 @@ class AirVault(context: Context, private val fileName: String) {
 
     @Synchronized
     fun write(content: String) {
-        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-        cipher.init(Cipher.ENCRYPT_MODE, masterKey())
-        val sealed = cipher.iv + cipher.doFinal(content.toByteArray(Charsets.UTF_8))
+        val sealed = try {
+            val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+            cipher.init(Cipher.ENCRYPT_MODE, keyOrFallback())
+            cipher.iv + cipher.doFinal(content.toByteArray(Charsets.UTF_8))
+        } catch (e: Exception) {
+            val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+            cipher.init(Cipher.ENCRYPT_MODE, fallbackKey())
+            cipher.iv + cipher.doFinal(content.toByteArray(Charsets.UTF_8))
+        }
         val tmp = File(file.parentFile, "$fileName.tmp")
         tmp.writeBytes(sealed)
         if (!tmp.renameTo(file)) {
@@ -65,5 +97,6 @@ class AirVault(context: Context, private val fileName: String) {
 
     companion object {
         private const val KEY_ALIAS = "air_chat_vault_master"
+        private val LOCK = Any()
     }
 }

@@ -158,9 +158,7 @@ object AirLocalServer {
     // JSON views in the format of the original API
     // ------------------------------------------------------------------------------------
 
-    private fun displayName(publicKey: String): String? =
-        if (publicKey == AirNetwork.selfKey) AirNetwork.getSetting("air:display_name")?.second?.ifBlank { null }
-        else null
+    private fun displayName(publicKey: String): String? = AirNetwork.profiles.value[publicKey]?.displayName
 
     private fun userJson(publicKey: String): JSONObject {
         val self = publicKey == AirNetwork.selfKey
@@ -170,6 +168,9 @@ object AirLocalServer {
             put("username", AirNetwork.username(publicKey))
             put("discriminator", "0001")
             displayName(publicKey)?.let { put("display_name", it) }
+            AirNetwork.profiles.value[publicKey]?.avatar
+                ?.let { AirNetwork.fileMeta(it) }
+                ?.let { put("avatar", autumnJson(it)) }
             put("relationship", when {
                 self -> "User"
                 AirNetwork.contacts.value.containsKey(publicKey) -> "Friend"
@@ -200,6 +201,8 @@ object AirLocalServer {
             AirConversation.KIND_CHANNEL -> {
                 put("channel_type", "TextChannel")
                 put("server", serverId(c.parent ?: ""))
+                // every server channel can also hold a voice/video call
+                put("voice", JSONObject().put("max_users", 8))
                 put("name", c.name)
             }
 
@@ -239,6 +242,7 @@ object AirLocalServer {
         val edited: Long?,
         val reactions: Map<String, List<String>>,
         val replies: List<String>,
+        val attachments: List<AirNetwork.FileMeta>,
     )
 
     private fun messageViews(conversation: AirConversation): List<MessageView> {
@@ -271,6 +275,7 @@ object AirLocalServer {
                     .filterValues { it.isNotEmpty() }
                     .mapValues { (_, users) -> users.map { userId(it) } },
                 replies = m.tags.filter { it.length == 26 },
+                attachments = AirNetwork.attachmentsOf(m),
             )
         }
     }
@@ -285,13 +290,14 @@ object AirLocalServer {
             put("reactions", JSONObject().apply { m.reactions.forEach { (e, u) -> put(e, JSONArray(u)) } })
         }
         if (m.replies.isNotEmpty()) put("replies", JSONArray(m.replies))
+        if (m.attachments.isNotEmpty()) put("attachments", JSONArray().apply { m.attachments.forEach { put(autumnJson(it)) } })
     }
 
     // ------------------------------------------------------------------------------------
     // HTTP
     // ------------------------------------------------------------------------------------
 
-    private class Reply(val code: Int, val body: String)
+    private class Reply(val code: Int, val body: String, val bytes: ByteArray? = null, val contentType: String? = null)
 
     private fun ok(json: Any = JSONObject()) = Reply(200, json.toString())
     private fun error(code: Int, type: String) = Reply(code, JSONObject().put("type", type).toString())
@@ -300,12 +306,15 @@ object AirLocalServer {
     val interceptor = Interceptor { chain ->
         val request = chain.request()
         val host = request.url.host
-        if (!(host.endsWith("stoat.chat") || host.endsWith("revolt.chat"))) {
+        if (!(host.endsWith("stoat.chat") || host.endsWith("revolt.chat") || host.endsWith("stoatusercontent.com"))) {
             return@Interceptor chain.proceed(request)
         }
-        val body = request.body?.let { b -> Buffer().also { b.writeTo(it) }.readUtf8() } ?: ""
+        val raw = request.body?.let { b -> Buffer().also { b.writeTo(it) }.readByteArray() } ?: ByteArray(0)
+        val body = String(raw, Charsets.UTF_8)
         val reply = try {
-            runBlocking(Dispatchers.IO) { route(request, body) }
+            runBlocking(Dispatchers.IO) {
+                if (host.endsWith("stoatusercontent.com")) fileRoute(request, raw) else route(request, body)
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Local request failed: ${request.method} ${request.url}", e)
             error(400, e.message ?: "InternalError")
@@ -315,8 +324,77 @@ object AirLocalServer {
             .protocol(Protocol.HTTP_1_1)
             .code(reply.code)
             .message(if (reply.code < 400) "OK" else "Error")
-            .body(reply.body.toResponseBody(JSON))
+            .body(
+                reply.bytes?.toResponseBody((reply.contentType ?: "application/octet-stream").toMediaType())
+                    ?: reply.body.toResponseBody(JSON)
+            )
             .build()
+    }
+
+    // ---- Files (uploads and downloads) ----
+
+    private suspend fun fileRoute(request: Request, raw: ByteArray): Reply {
+        ensureStarted() ?: return error(401, "Unauthorized")
+        val segments = request.url.pathSegments.filter { it.isNotEmpty() }
+        if (request.method == "POST" && segments.size == 1) {
+            val boundary = request.body?.contentType()?.parameter("boundary") ?: return error(400, "BadRequest")
+            val part = parseMultipart(raw, boundary) ?: return error(400, "BadRequest")
+            if (part.bytes.size > AirNetwork.MAX_FILE_SIZE) return error(413, "FileTooLarge")
+            val meta = AirNetwork.storeFile(segments[0], part.filename, part.contentType, part.bytes)
+            return ok(JSONObject().put("id", meta.id))
+        }
+        if (request.method == "GET" && segments.size >= 2) {
+            val id = segments[1]
+            val bytes = AirNetwork.awaitFile(id) ?: return error(404, "NotFound")
+            val type = AirNetwork.fileMeta(id)?.contentType ?: "application/octet-stream"
+            return Reply(200, "", bytes, type)
+        }
+        return error(404, "NotFound")
+    }
+
+    private class Part(val filename: String, val contentType: String, val bytes: ByteArray)
+
+    private fun parseMultipart(raw: ByteArray, boundary: String): Part? {
+        val delimiter = "--$boundary".toByteArray()
+        fun indexOf(pattern: ByteArray, from: Int): Int {
+            outer@ for (i in from..raw.size - pattern.size) {
+                for (j in pattern.indices) if (raw[i + j] != pattern[j]) continue@outer
+                return i
+            }
+            return -1
+        }
+        val start = indexOf(delimiter, 0)
+        if (start < 0) return null
+        val headerEnd = indexOf("\r\n\r\n".toByteArray(), start)
+        if (headerEnd < 0) return null
+        val headers = String(raw, start, headerEnd - start, Charsets.UTF_8)
+        val dataStart = headerEnd + 4
+        val end = indexOf("\r\n--$boundary".toByteArray(), dataStart)
+        if (end < 0) return null
+        val filename = Regex("filename=\"([^\"]*)\"").find(headers)?.groupValues?.get(1) ?: "file"
+        val contentType = Regex("(?i)content-type:\\s*([^\\r\\n]+)").find(headers)?.groupValues?.get(1)?.trim()
+            ?: "application/octet-stream"
+        return Part(filename, contentType, raw.copyOfRange(dataStart, end))
+    }
+
+    private fun autumnJson(meta: AirNetwork.FileMeta) = JSONObject().apply {
+        put("_id", meta.id)
+        put("tag", meta.tag)
+        put("filename", meta.filename)
+        put("content_type", meta.contentType)
+        put("size", meta.size)
+        put("metadata", JSONObject().apply {
+            when {
+                meta.contentType.startsWith("image/") -> {
+                    put("type", "Image"); meta.width?.let { put("width", it) }; meta.height?.let { put("height", it) }
+                }
+
+                meta.contentType.startsWith("video/") -> put("type", "Video")
+                meta.contentType.startsWith("audio/") -> put("type", "Audio")
+                meta.contentType.startsWith("text/") -> put("type", "Text")
+                else -> put("type", "File")
+            }
+        })
     }
 
     private fun jsonBody(body: String): JSONObject = runCatching { JSONObject(body) }.getOrDefault(JSONObject())
@@ -364,9 +442,15 @@ object AirLocalServer {
             method == "GET" && path == "/users/@me" -> ok(userJson(self))
             method == "PATCH" && path == "/users/@me" -> {
                 val json = jsonBody(body)
-                if (json.has("display_name")) {
-                    AirNetwork.setSetting("air:display_name", System.currentTimeMillis(), json.optString("display_name"))
-                }
+                val current = AirNetwork.ownProfile()
+                val remove = json.optJSONArray("remove")?.let { a -> (0 until a.length()).map { a.getString(it) } } ?: emptyList()
+                var name = current.displayName
+                var avatar = current.avatar
+                if (json.has("display_name")) name = json.optString("display_name")
+                if (json.has("avatar")) avatar = json.optString("avatar").ifBlank { null }
+                if ("DisplayName" in remove) name = null
+                if ("Avatar" in remove) avatar = null
+                AirNetwork.updateOwnProfile(name, avatar)
                 ok(userJson(self))
             }
 
@@ -398,7 +482,7 @@ object AirLocalServer {
             put("captcha", JSONObject().put("enabled", false).put("key", ""))
             put("email", false)
             put("invite_only", false)
-            put("autumn", JSONObject().put("enabled", false).put("url", ""))
+            put("autumn", JSONObject().put("enabled", true).put("url", "https://cdn.stoatusercontent.com"))
             put("january", JSONObject().put("enabled", false).put("url", ""))
             put("livekit", JSONObject().put("enabled", false).put("nodes", JSONArray()))
         })
@@ -605,13 +689,18 @@ object AirLocalServer {
     }
 
     private suspend fun sendMessage(conversation: AirConversation, json: JSONObject): Reply {
-        val attachments = json.optJSONArray("attachments")
-        if (attachments != null && attachments.length() > 0) return error(400, Res.string.airnet_uploads_unavailable)
+        val attachmentIds = json.optJSONArray("attachments")?.let { a -> (0 until a.length()).map { a.getString(it) } }
+            ?: emptyList()
+        val files = attachmentIds.take(5).mapNotNull { AirNetwork.fileMeta(it) }
+        if (files.size != attachmentIds.take(5).size) return error(400, Res.string.airnet_uploads_unavailable)
         val replies = json.optJSONArray("replies")?.let { a ->
             (0 until a.length()).mapNotNull { a.optJSONObject(it)?.optString("id") }
         } ?: emptyList()
         val content = json.optString("content")
-        val item = AirNetwork.post(conversation.id, AirItem.MESSAGE, content, tags = replies)
+        val item = AirNetwork.post(
+            conversation.id, AirItem.MESSAGE, content,
+            tags = replies + files.map { "f:" + it.toJson().toString() }
+        )
             ?: return error(401, "Unauthorized")
         val view = messageViews(conversation).firstOrNull { it.id == item.id } ?: return error(400, "InternalError")
         return ok(messageJson(view).put("nonce", json.optString("nonce")))

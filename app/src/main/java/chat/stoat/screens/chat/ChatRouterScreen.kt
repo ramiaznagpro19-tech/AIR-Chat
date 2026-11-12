@@ -262,21 +262,24 @@ class ChatRouterViewModel(
 
     fun setRegisterForNotifications() {
         showNotificationRationale = false
-        FirebaseMessaging.getInstance().token.addOnCompleteListener(
-            OnCompleteListener { task ->
-                if (!task.isSuccessful) {
-                    Log.w("FCM", "Fetching FCM registration token failed", task.exception)
-                    task.exception?.let { Sentry.captureException(it) }
-                    return@OnCompleteListener
-                }
+        // AIR Chat: no crash on devices/emulators without Google Play services
+        runCatching {
+            FirebaseMessaging.getInstance().token.addOnCompleteListener(
+                OnCompleteListener { task ->
+                    if (!task.isSuccessful) {
+                        Log.w("FCM", "Fetching FCM registration token failed", task.exception)
+                        task.exception?.let { Sentry.captureException(it) }
+                        return@OnCompleteListener
+                    }
 
-                val token = task.result
-                viewModelScope.launch {
-                    kvStorage.set("fcmToken", token)
-                    subscribePush(auth = token)
+                    val token = task.result
+                    viewModelScope.launch {
+                        kvStorage.set("fcmToken", token)
+                        subscribePush(auth = token)
+                    }
                 }
-            }
-        )
+            )
+        }
     }
 
     fun markNotificationsRejected() {

@@ -96,9 +96,18 @@ fun AirCallOverlay() {
     val state by AirCall.state.collectAsState()
     if (state == AirCall.State.IDLE) return
     val peer by AirCall.peer.collectAsState()
-    val remoteVideo by AirCall.remoteVideo.collectAsState()
+    val remoteVideos by AirCall.remoteVideos.collectAsState()
     val localVideo by AirCall.localVideo.collectAsState()
-    val name = peer?.let { AirNetwork.username(it) } ?: ""
+    val conversationId by AirCall.conversation.collectAsState()
+    val participants by AirCall.participants.collectAsState()
+    val profiles by AirNetwork.profiles.collectAsState()
+    val conversation = conversationId?.let { AirNetwork.conversations.value[it] }
+    fun nameOf(key: String) = profiles[key]?.displayName ?: AirNetwork.username(key)
+    val name = when {
+        conversation != null && conversation.kind != chat.stoat.air.AirConversation.KIND_DM ->
+            conversation.name.let { if (conversation.kind == chat.stoat.air.AirConversation.KIND_CHANNEL) "#$it" else it }
+        else -> peer?.let { nameOf(it) } ?: ""
+    }
     val withPermissions = rememberCallPermissions()
 
     Box(
@@ -106,9 +115,38 @@ fun AirCallOverlay() {
             .fillMaxSize()
             .background(Color.Black)
     ) {
-        val remote = remoteVideo
-        if (state == AirCall.State.ACTIVE && remote != null) {
-            VideoView(remote, Modifier.fillMaxSize())
+        if (state == AirCall.State.ACTIVE && remoteVideos.isNotEmpty()) {
+            // one tile per participant sending video
+            val tiles = remoteVideos.entries.toList()
+            Column(Modifier.fillMaxSize()) {
+                tiles.chunked(if (tiles.size <= 2) 1 else 2).forEach { row ->
+                    Row(Modifier.weight(1f).fillMaxWidth()) {
+                        row.forEach { (_, track) ->
+                            VideoView(track, Modifier.weight(1f).fillMaxSize().padding(2.dp))
+                        }
+                    }
+                }
+            }
+        } else if (state == AirCall.State.ACTIVE && participants.size > 1) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+                modifier = Modifier.fillMaxSize()
+            ) {
+                Text(name, color = Color.White, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(24.dp))
+                participants.chunked(3).forEach { row ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(24.dp), modifier = Modifier.padding(8.dp)) {
+                        row.forEach { key ->
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                AirAvatar(nameOf(key), size = 72.dp)
+                                Spacer(Modifier.height(6.dp))
+                                Text(nameOf(key), color = Color.White, style = MaterialTheme.typography.labelLarge)
+                            }
+                        }
+                    }
+                }
+            }
         } else {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -304,10 +342,10 @@ private fun VideoView(track: VideoTrack, modifier: Modifier, mirror: Boolean = f
 @Composable
 fun CallButtons(peer: String) {
     val withPermissions = rememberCallPermissions()
-    androidx.compose.material3.IconButton(onClick = { withPermissions { AirCall.start(peer, video = false) } }) {
+    androidx.compose.material3.IconButton(onClick = { withPermissions { AirCall.start(AirNetwork.openDirect(peer).id, video = false) } }) {
         Icon(painterResource(Res.drawable.ic_call_24dp__fill), null)
     }
-    androidx.compose.material3.IconButton(onClick = { withPermissions { AirCall.start(peer, video = true) } }) {
+    androidx.compose.material3.IconButton(onClick = { withPermissions { AirCall.start(AirNetwork.openDirect(peer).id, video = true) } }) {
         Icon(painterResource(Res.drawable.ic_videocam_24dp), null)
     }
 }

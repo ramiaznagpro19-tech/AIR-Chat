@@ -15,6 +15,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -44,17 +45,23 @@ import livekit.org.webrtc.VideoCapturer
 import livekit.org.webrtc.VideoSource
 import livekit.org.webrtc.VideoTrack
 import livekit.org.webrtc.audio.JavaAudioDeviceModule
+import org.json.JSONArray
 import org.json.JSONObject
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
 /**
- * AIR Chat peer-to-peer calls: audio, video (up to 4K) and screen sharing, sent directly between
- * the two phones (WebRTC, DTLS-SRTP: encrypted end to end). Only the connection set-up goes
- * through the encrypted rendezvous signalling.
+ * AIR Chat peer-to-peer calls: audio, video (up to 4K) and screen sharing, for direct messages,
+ * groups and server channels.
+ *
+ * Every participant is connected directly to every other one (mesh), with WebRTC (DTLS-SRTP,
+ * encrypted end to end). Connection set-up goes over the existing peer-to-peer link when there
+ * is one, otherwise over the encrypted rendezvous signalling.
  */
 object AirCall {
     private const val TAG = "AirCall"
+    private const val MAX_PARTICIPANTS = 8
 
     enum class State { IDLE, OUTGOING, INCOMING, CONNECTING, ACTIVE }
 
@@ -64,8 +71,19 @@ object AirCall {
     private val _state = MutableStateFlow(State.IDLE)
     val state: StateFlow<State> = _state.asStateFlow()
 
+    /** The person shown as the call's title (caller, or the other person in a DM). */
     private val _peer = MutableStateFlow<String?>(null)
     val peer: StateFlow<String?> = _peer.asStateFlow()
+
+    private val _conversation = MutableStateFlow<String?>(null)
+    val conversation: StateFlow<String?> = _conversation.asStateFlow()
+
+    /** Other participants currently connected. */
+    private val _participants = MutableStateFlow<Set<String>>(emptySet())
+    val participants: StateFlow<Set<String>> = _participants.asStateFlow()
+
+    private val _remoteVideos = MutableStateFlow<Map<String, VideoTrack>>(emptyMap())
+    val remoteVideos: StateFlow<Map<String, VideoTrack>> = _remoteVideos.asStateFlow()
 
     private val _remoteVideo = MutableStateFlow<VideoTrack?>(null)
     val remoteVideo: StateFlow<VideoTrack?> = _remoteVideo.asStateFlow()
@@ -88,13 +106,19 @@ object AirCall {
     val eglBase: EglBase by lazy { EglBase.create() }
 
     private var factory: PeerConnectionFactory? = null
-    private var connection: PeerConnection? = null
-    private var sessionId: String? = null
-    private var pendingOffer: String? = null
-    private var gathered = CompletableDeferred<Unit>()
+    private var callId: String? = null
+    private var startWithVideo = false
+
+    private class Link(val peer: String, val connection: PeerConnection) {
+        var videoTransceiver: RtpTransceiver? = null
+        var gathered = CompletableDeferred<Unit>()
+        var connected = false
+    }
+
+    private val links = ConcurrentHashMap<String, Link>()
 
     private var audioTrack: AudioTrack? = null
-    private var videoTransceiver: RtpTransceiver? = null
+    private var videoTrack: VideoTrack? = null
     private var capturer: VideoCapturer? = null
     private var videoSource: VideoSource? = null
     private var textureHelper: SurfaceTextureHelper? = null
@@ -121,108 +145,161 @@ object AirCall {
             .also { factory = it }
     }
 
+    private fun send(to: String, payload: JSONObject) {
+        payload.put("cid", callId ?: payload.optString("cid"))
+        payload.put("conv", _conversation.value ?: payload.optString("conv"))
+        AirNetwork.sendCallMessage(to, payload)
+    }
+
+    private fun otherMembers(conversationId: String): Set<String> =
+        AirNetwork.conversations.value[conversationId]?.members.orEmpty() - setOfNotNull(AirNetwork.selfKey)
+
     // ------------------------------------------------------------------------------------
     // Call flow
     // ------------------------------------------------------------------------------------
 
-    fun start(to: String, video: Boolean) {
+    /** Starts a call in a conversation (DM, group or server channel). */
+    fun start(conversationId: String, video: Boolean) {
         if (_state.value != State.IDLE) return
-        _peer.value = to
+        val others = otherMembers(conversationId)
+        if (others.isEmpty()) return
+        callId = AirNetworkSignals.newSessionId()
+        _conversation.value = conversationId
+        _peer.value = others.first()
+        startWithVideo = video
         _state.value = State.OUTGOING
-        sessionId = AirNetworkSignals.newSessionId()
+        prepareLocalMedia()
+        if (video) scope.launch { setCamera(true) }
+        others.take(MAX_PARTICIPANTS).forEach { member ->
+            send(member, JSONObject().put("t", "call-ring").put("video", video))
+        }
+        // stop ringing if nobody answers
+        val ringing = callId
         scope.launch {
-            try {
-                val pc = createConnection() ?: return@launch hangUp()
-                addLocalMedia(pc)
-                if (video) setCamera(true)
-                val offer = pc.createDescription(true)
-                pc.applyDescription(offer, true)
-                withTimeoutOrNull(6_000) { gathered.await() }
-                AirNetworkSignals.send(
-                    to,
-                    JSONObject().put("t", "call-offer").put("sid", sessionId)
-                        .put("video", video)
-                        .put("sdp", pc.localDescription?.description ?: offer.description)
-                )
-            } catch (e: Exception) {
-                Log.e(TAG, "Could not start call", e)
-                hangUp()
-            }
+            delay(45_000)
+            if (callId == ringing && _state.value == State.OUTGOING) hangUp()
         }
     }
 
     fun accept() {
         if (_state.value != State.INCOMING) return
-        val to = _peer.value ?: return
-        val offer = pendingOffer ?: return
+        val caller = _peer.value ?: return
         _state.value = State.CONNECTING
-        scope.launch {
-            try {
-                val pc = createConnection() ?: return@launch hangUp()
-                pc.applyDescription(SessionDescription(SessionDescription.Type.OFFER, offer), false)
-                addLocalMedia(pc)
-                val answer = pc.createDescription(false)
-                pc.applyDescription(answer, true)
-                withTimeoutOrNull(6_000) { gathered.await() }
-                AirNetworkSignals.send(
-                    to,
-                    JSONObject().put("t", "call-answer").put("sid", sessionId)
-                        .put("sdp", pc.localDescription?.description ?: answer.description)
-                )
-            } catch (e: Exception) {
-                Log.e(TAG, "Could not accept call", e)
-                hangUp()
-            }
-        }
+        prepareLocalMedia()
+        if (startWithVideo) scope.launch { setCamera(true) }
+        scope.launch { connectTo(caller) }
+        send(caller, JSONObject().put("t", "call-join"))
     }
 
     fun hangUp() {
-        val to = _peer.value
-        if (to != null && _state.value != State.IDLE) {
-            AirNetworkSignals.send(to, JSONObject().put("t", "call-end").put("sid", sessionId ?: ""))
+        links.keys.toList().forEach { send(it, JSONObject().put("t", "call-leave")) }
+        if (_state.value == State.OUTGOING || _state.value == State.INCOMING) {
+            _conversation.value?.let { conv ->
+                otherMembers(conv).forEach { send(it, JSONObject().put("t", "call-leave")) }
+            }
         }
         cleanUp()
     }
 
     internal fun onSignal(from: String, json: JSONObject) {
         scope.launch {
-            when (json.optString("t")) {
-                "call-offer" -> {
-                    if (_state.value != State.IDLE) {
-                        AirNetworkSignals.send(from, JSONObject().put("t", "call-end").put("sid", json.optString("sid")))
-                        return@launch
-                    }
-                    _peer.value = from
-                    sessionId = json.optString("sid")
-                    pendingOffer = json.getString("sdp")
-                    _state.value = State.INCOMING
-                }
-
-                "call-answer" -> {
-                    if (from != _peer.value || json.optString("sid") != sessionId) return@launch
-                    _state.value = State.CONNECTING
-                    runCatching {
-                        connection?.applyDescription(
-                            SessionDescription(SessionDescription.Type.ANSWER, json.getString("sdp")), false
-                        )
-                    }.onFailure { hangUp() }
-                }
-
-                "call-end" -> {
-                    if (from == _peer.value && json.optString("sid") == sessionId) cleanUp()
-                }
+            try {
+                handleSignal(from, json)
+            } catch (e: Exception) {
+                Log.w(TAG, "Call signal failed", e)
             }
         }
     }
 
-    private fun createConnection(): PeerConnection? {
-        gathered = CompletableDeferred()
+    private suspend fun handleSignal(from: String, json: JSONObject) {
+        val cid = json.optString("cid")
+        val conv = json.optString("conv")
+        when (json.optString("t")) {
+            "call-ring" -> {
+                val conversation = AirNetwork.conversations.value[conv] ?: return
+                if (from !in conversation.members) return
+                if (_state.value != State.IDLE) {
+                    if (cid != callId) send(from, JSONObject().put("t", "call-busy").put("cid", cid).put("conv", conv))
+                    return
+                }
+                callId = cid
+                _conversation.value = conv
+                _peer.value = from
+                startWithVideo = json.optBoolean("video")
+                _state.value = State.INCOMING
+            }
+
+            "call-join" -> {
+                if (cid != callId) return
+                // tell the newcomer who else is in the call, so it connects to them too
+                val roster = links.filter { it.value.connected && it.key != from }.keys
+                send(from, JSONObject().put("t", "call-roster").put("peers", JSONArray(roster.toList())))
+                if (_state.value == State.OUTGOING) _state.value = State.CONNECTING
+            }
+
+            "call-roster" -> {
+                if (cid != callId) return
+                val peers = json.optJSONArray("peers") ?: return
+                for (i in 0 until peers.length()) {
+                    val member = peers.getString(i)
+                    if (member != AirNetwork.selfKey && !links.containsKey(member) && links.size < MAX_PARTICIPANTS) {
+                        connectTo(member)
+                    }
+                }
+            }
+
+            "call-offer" -> {
+                if (cid != callId || _state.value == State.IDLE || _state.value == State.INCOMING) return
+                answer(from, json.getString("sdp"))
+            }
+
+            "call-answer" -> {
+                if (cid != callId) return
+                links[from]?.connection?.applyDescription(
+                    SessionDescription(SessionDescription.Type.ANSWER, json.getString("sdp")), false
+                )
+            }
+
+            "call-leave", "call-busy" -> {
+                if (cid != callId) return
+                if (_state.value == State.INCOMING && from == _peer.value) {
+                    cleanUp()
+                    return
+                }
+                removeLink(from)
+            }
+        }
+    }
+
+    private suspend fun connectTo(peer: String) {
+        val link = createLink(peer) ?: return
+        val offer = link.connection.createDescription(true)
+        link.connection.applyDescription(offer, true)
+        withTimeoutOrNull(6_000) { link.gathered.await() }
+        send(peer, JSONObject().put("t", "call-offer").put("sdp", link.connection.localDescription?.description ?: offer.description))
+    }
+
+    private suspend fun answer(peer: String, sdp: String) {
+        val link = createLink(peer) ?: return
+        link.connection.applyDescription(SessionDescription(SessionDescription.Type.OFFER, sdp), false)
+        val answer = link.connection.createDescription(false)
+        link.connection.applyDescription(answer, true)
+        withTimeoutOrNull(6_000) { link.gathered.await() }
+        send(peer, JSONObject().put("t", "call-answer").put("sdp", link.connection.localDescription?.description ?: answer.description))
+    }
+
+    private fun createLink(peer: String): Link? {
+        removeLink(peer, notify = false)
+        var created: Link? = null
         val observer = object : PeerConnection.Observer {
             override fun onIceCandidate(candidate: IceCandidate) {}
             override fun onAddTrack(receiver: RtpReceiver, streams: Array<out MediaStream>) {}
             override fun onTrack(transceiver: RtpTransceiver) {
                 val track = transceiver.receiver.track()
-                if (track is VideoTrack) _remoteVideo.value = track
+                if (track is VideoTrack) scope.launch {
+                    _remoteVideos.value = _remoteVideos.value + (peer to track)
+                    _remoteVideo.value = _remoteVideos.value.values.firstOrNull()
+                }
             }
 
             override fun onDataChannel(channel: DataChannel) {}
@@ -230,12 +307,16 @@ object AirCall {
                 scope.launch {
                     when (newState) {
                         PeerConnection.PeerConnectionState.CONNECTED -> {
-                            _state.value = State.ACTIVE
-                            audioMode(true)
+                            created?.connected = true
+                            _participants.value = _participants.value + peer
+                            if (_state.value != State.ACTIVE) {
+                                _state.value = State.ACTIVE
+                                audioMode(true)
+                            }
                         }
 
                         PeerConnection.PeerConnectionState.FAILED,
-                        PeerConnection.PeerConnectionState.CLOSED -> cleanUp()
+                        PeerConnection.PeerConnectionState.CLOSED -> if (links[peer] === created) removeLink(peer)
 
                         else -> Unit
                     }
@@ -246,7 +327,7 @@ object AirCall {
             override fun onIceConnectionChange(p0: PeerConnection.IceConnectionState?) {}
             override fun onIceConnectionReceivingChange(p0: Boolean) {}
             override fun onIceGatheringChange(p0: PeerConnection.IceGatheringState?) {
-                if (p0 == PeerConnection.IceGatheringState.COMPLETE) gathered.complete(Unit)
+                if (p0 == PeerConnection.IceGatheringState.COMPLETE) created?.gathered?.complete(Unit)
             }
 
             override fun onIceCandidatesRemoved(p0: Array<out IceCandidate>?) {}
@@ -254,24 +335,34 @@ object AirCall {
             override fun onRemoveStream(p0: MediaStream?) {}
             override fun onRenegotiationNeeded() {}
         }
-        return factory().createPeerConnection(AirNetwork.rtcConfiguration(), observer).also { connection = it }
-    }
-
-    private fun addLocalMedia(pc: PeerConnection) {
-        val f = factory()
-        val audioSource = f.createAudioSource(MediaConstraints())
-        val audio = f.createAudioTrack("air-audio", audioSource)
-        audioTrack = audio
-        pc.addTrack(audio, listOf("air-call"))
-
-        // One video slot, used by the camera or by screen sharing
-        val existing = pc.transceivers.firstOrNull { it.mediaType == MediaStreamTrack.MediaType.MEDIA_TYPE_VIDEO }
-        videoTransceiver = existing?.also {
-            it.setDirection(RtpTransceiver.RtpTransceiverDirection.SEND_RECV)
-        } ?: pc.addTransceiver(
+        val connection = factory().createPeerConnection(AirNetwork.rtcConfiguration(), observer) ?: return null
+        val link = Link(peer, connection)
+        created = link
+        audioTrack?.let { connection.addTrack(it, listOf("air-call")) }
+        link.videoTransceiver = connection.addTransceiver(
             MediaStreamTrack.MediaType.MEDIA_TYPE_VIDEO,
             RtpTransceiver.RtpTransceiverInit(RtpTransceiver.RtpTransceiverDirection.SEND_RECV)
         )
+        videoTrack?.let { link.videoTransceiver?.sender?.setTrack(it, false) }
+        applyBitrate(link)
+        links[peer] = link
+        return link
+    }
+
+    private fun removeLink(peer: String, notify: Boolean = true) {
+        val link = links.remove(peer) ?: return
+        runCatching { link.connection.close() }
+        _participants.value = _participants.value - peer
+        _remoteVideos.value = _remoteVideos.value - peer
+        _remoteVideo.value = _remoteVideos.value.values.firstOrNull()
+        if (notify && links.isEmpty() && _state.value == State.ACTIVE) cleanUp()
+    }
+
+    private fun prepareLocalMedia() {
+        if (audioTrack != null) return
+        val f = factory()
+        val source = f.createAudioSource(MediaConstraints())
+        audioTrack = f.createAudioTrack("air-audio", source).also { it.setEnabled(_micOn.value) }
     }
 
     // ------------------------------------------------------------------------------------
@@ -293,19 +384,11 @@ object AirCall {
     fun changeQuality(quality: AirVideoQuality) {
         _quality.value = quality
         AirVideoQuality.save(appContext, quality)
-        when {
-            _screenSharing.value -> {
-                val preset = quality.screen
-                runCatching { capturer?.changeCaptureFormat(preset.capture.width, preset.capture.height, preset.capture.maxFps) }
-                applyBitrate(preset.encoding.maxBitrate, preset.encoding.maxFps)
-            }
-
-            _cameraOn.value -> {
-                val preset = quality.camera
-                runCatching { capturer?.changeCaptureFormat(preset.capture.width, preset.capture.height, preset.capture.maxFps) }
-                applyBitrate(preset.encoding.maxBitrate, preset.encoding.maxFps)
-            }
+        val preset = if (_screenSharing.value) quality.screen else quality.camera
+        if (_screenSharing.value || _cameraOn.value) {
+            runCatching { capturer?.changeCaptureFormat(preset.capture.width, preset.capture.height, preset.capture.maxFps) }
         }
+        links.values.forEach { applyBitrate(it) }
     }
 
     private fun setCamera(enabled: Boolean) {
@@ -317,13 +400,13 @@ object AirCall {
         val camera = enumerator.createCapturer(name, null) ?: return
         val preset = _quality.value.camera
         startVideo(camera, isScreencast = false, preset.capture.width, preset.capture.height, preset.capture.maxFps)
-        applyBitrate(preset.encoding.maxBitrate, preset.encoding.maxFps)
         _cameraOn.value = true
+        links.values.forEach { applyBitrate(it) }
     }
 
     /** Starts screen sharing with the permission result returned by MediaProjectionManager. */
     fun startScreenShare(permissionData: Intent) {
-        if (connection == null) return
+        if (_state.value == State.IDLE) return
         val serviceIntent = Intent(appContext, ScreenCaptureService::class.java)
         val serviceConnection = object : ServiceConnection {
             override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
@@ -336,8 +419,8 @@ object AirCall {
                 })
                 val preset = _quality.value.screen
                 startVideo(screen, isScreencast = true, preset.capture.width, preset.capture.height, preset.capture.maxFps)
-                applyBitrate(preset.encoding.maxBitrate, preset.encoding.maxFps)
                 _screenSharing.value = true
+                links.values.forEach { applyBitrate(it) }
             }
 
             override fun onServiceDisconnected(name: ComponentName?) {}
@@ -356,39 +439,44 @@ object AirCall {
     private fun startVideo(source: VideoCapturer, isScreencast: Boolean, width: Int, height: Int, fps: Int) {
         val f = factory()
         val helper = SurfaceTextureHelper.create("air-capture", eglBase.eglBaseContext)
-        val videoSrc = f.createVideoSource(isScreencast)
-        source.initialize(helper, appContext, videoSrc.capturerObserver)
+        val src = f.createVideoSource(isScreencast)
+        source.initialize(helper, appContext, src.capturerObserver)
         source.startCapture(width, height, fps)
-        val track = f.createVideoTrack("air-video", videoSrc)
-        videoTransceiver?.sender?.setTrack(track, false)
+        val track = f.createVideoTrack("air-video", src)
+        links.values.forEach { it.videoTransceiver?.sender?.setTrack(track, false) }
         capturer = source
-        videoSource = videoSrc
+        videoSource = src
         textureHelper = helper
+        videoTrack = track
         _localVideo.value = track
     }
 
     private fun stopVideo() {
-        videoTransceiver?.sender?.setTrack(null, false)
+        links.values.forEach { it.videoTransceiver?.sender?.setTrack(null, false) }
         runCatching { capturer?.stopCapture() }
         runCatching { capturer?.dispose() }
-        runCatching { _localVideo.value?.dispose() }
+        runCatching { videoTrack?.dispose() }
         runCatching { videoSource?.dispose() }
         runCatching { textureHelper?.dispose() }
         capturer = null
         videoSource = null
         textureHelper = null
+        videoTrack = null
         _localVideo.value = null
         _cameraOn.value = false
         _screenSharing.value = false
     }
 
-    private fun applyBitrate(maxBitrate: Int, maxFps: Int) {
-        val sender = videoTransceiver?.sender ?: return
+    /** In a group, the available bandwidth is shared between participants. */
+    private fun applyBitrate(link: Link) {
+        val preset = if (_screenSharing.value) _quality.value.screen else _quality.value.camera
+        val share = maxOf(1, links.size)
+        val sender = link.videoTransceiver?.sender ?: return
         runCatching {
             val parameters = sender.parameters
             parameters.encodings.forEach {
-                it.maxBitrateBps = maxBitrate
-                it.maxFramerate = maxFps
+                it.maxBitrateBps = preset.encoding.maxBitrate / share
+                it.maxFramerate = preset.encoding.maxFps
             }
             sender.setParameters(parameters)
         }
@@ -405,16 +493,18 @@ object AirCall {
         stopVideo()
         screenServiceConnection?.let { runCatching { appContext.unbindService(it) } }
         screenServiceConnection = null
+        links.values.forEach { runCatching { it.connection.close() } }
+        links.clear()
         runCatching { audioTrack?.dispose() }
         audioTrack = null
-        runCatching { connection?.close() }
-        connection = null
-        videoTransceiver = null
-        pendingOffer = null
-        sessionId = null
+        callId = null
+        startWithVideo = false
+        _remoteVideos.value = emptyMap()
         _remoteVideo.value = null
+        _participants.value = emptySet()
         _micOn.value = true
         _peer.value = null
+        _conversation.value = null
         _state.value = State.IDLE
         runCatching { audioMode(false) }
     }

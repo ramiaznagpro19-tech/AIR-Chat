@@ -76,30 +76,33 @@ class NotificationsSettingsScreenViewModel(
     fun subscribeIfNeeded() {
         if (isUpdating) return
         isUpdating = true
-        FirebaseMessaging.getInstance().token.addOnCompleteListener(
-            OnCompleteListener { task ->
-                if (!task.isSuccessful) {
-                    isUpdating = false
-                    return@OnCompleteListener
-                }
-                val newToken = task.result
-                viewModelScope.launch {
-                    try {
-                        val existingToken = kvStorage.get("fcmToken")
-                        if (existingToken != newToken) {
-                            subscribePush(auth = newToken)
-                            kvStorage.set("fcmToken", newToken)
-                        }
-                        kvStorage.remove("pushNotificationsRejected")
-                        isPushEnabled = checkPushEnabled()
-                    } catch (e: Exception) {
-                        // subscribe failed, leave state unchanged
-                    } finally {
+        // AIR Chat: no crash on devices/emulators without Google Play services
+        runCatching {
+            FirebaseMessaging.getInstance().token.addOnCompleteListener(
+                OnCompleteListener { task ->
+                    if (!task.isSuccessful) {
                         isUpdating = false
+                        return@OnCompleteListener
+                    }
+                    val newToken = task.result
+                    viewModelScope.launch {
+                        try {
+                            val existingToken = kvStorage.get("fcmToken")
+                            if (existingToken != newToken) {
+                                subscribePush(auth = newToken)
+                                kvStorage.set("fcmToken", newToken)
+                            }
+                            kvStorage.remove("pushNotificationsRejected")
+                            isPushEnabled = checkPushEnabled()
+                        } catch (e: Exception) {
+                            // subscribe failed, leave state unchanged
+                        } finally {
+                            isUpdating = false
+                        }
                     }
                 }
-            }
-        )
+            )
+        }
     }
 
     fun disablePush() {
