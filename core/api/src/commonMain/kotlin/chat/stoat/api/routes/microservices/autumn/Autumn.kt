@@ -65,7 +65,7 @@ suspend fun uploadToAutumn(
             if (response.status == HttpStatusCode.PayloadTooLarge) {
                 throw Exception("File too large")
             }
-            throw Exception("Unknown error")
+            throw Exception("Upload failed (" + response.status.value + "): " + response.bodyAsText().take(200))
         }
     }
 }

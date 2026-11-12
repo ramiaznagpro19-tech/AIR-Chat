@@ -104,7 +104,7 @@ class LoginViewModel(
             } catch (e: Exception) {
                 _error = if (e.message?.startsWith("Unexpected JSON token") == true) {
                     getString(Res.string.service_health_alert_body_default)
-                } else e.message ?: "Unknown error"
+                } else e.message ?: e.toString()
                 return@launch
             }
             val error = response.error
@@ -141,7 +141,7 @@ class LoginViewModel(
 
                         _navigateTo = "home"
                     } catch (e: Error) {
-                        _error = e.message ?: "Unknown error"
+                        _error = e.message ?: e.toString()
                     }
                 }
             }

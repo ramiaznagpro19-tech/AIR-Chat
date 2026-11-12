@@ -1,0 +1,74 @@
+name: AIR Chat backend test
+
+on:
+  push:
+    branches: [ "dev" ]
+  workflow_dispatch:
+
+concurrency:
+  group: air-chat-backend-test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  emulator-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    env:
+      RVX_DEBUG_APP_NAME: "AIR Chat"
+      RVX_BUILD_FLAVOUR_ID: "AIRC"
+      RVX_SENTRY_DSN: ""
+      RVX_SENTRY_UPLOAD_MAPPINGS: "false"
+      GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx6g -Dkotlin.daemon.jvm.options=-Xmx4g"
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: 'recursive'
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Prepare build files
+        run: |
+          chmod +x gradlew
+          [ -f app/google-services.json ] || cp app/google-services.json.example app/google-services.json
+          SDKM=$(ls -d "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager | sort -V | tail -1)
+          yes | "$SDKM" --licenses > /dev/null || true
+
+      - name: Build app and test APKs
+        run: ./gradlew --no-daemon assembleDebug assembleDebugAndroidTest
+
+      - name: Run backend test on an emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: |
+            adb logcat -c || true
+            adb install -r -g app/build/outputs/apk/debug/*.apk
+            adb install -r -g app/build/outputs/apk/androidTest/debug/*.apk
+            adb shell am instrument -w -r -e class chat.stoat.air.AirBackendTest $(adb shell pm list instrumentation | grep -o 'instrumentation:[^ ]*' | grep -i test | head -1 | cut -d: -f2) | tee instrument.txt || true
+            adb logcat -d | grep -E "AIRTEST|AirBackendTest|AndroidRuntime|AirLocalServer|FATAL" | head -400 | tee logcat.txt || true
+
+      - name: Upload test logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: air-chat-backend-test-logs
+          path: |
+            instrument.txt
+            logcat.txt

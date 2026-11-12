@@ -105,7 +105,7 @@ object AirServers {
     }
 
     fun ownerOf(server: AirConversation): String? =
-        if (AirOfficial.isOpen(server.id)) AirAccount.ownerKey else server.owner
+        if (AirOfficial.isOpen(server.id)) AirAccount.ownerKey.ifEmpty { null } else server.owner
 
     fun state(server: AirConversation): State {
         val items = AirNetwork.items.value.values.filter {

@@ -177,7 +177,7 @@ object AirNetwork {
         if (session?.publicKey == newSession.publicKey) return
         stop()
         session = newSession
-        vault = AirVault(appContext, "net_${newSession.publicKey.take(16)}.vault")
+        vault = AirVault(appContext, "net2_${newSession.publicKey.take(16)}.vault")
         load()
         NostrRelayPool.start()
         subscriptionId = NostrRelayPool.subscribe(
@@ -190,6 +190,11 @@ object AirNetwork {
         ) { onSignalEvent(it) }
         refreshInviteSubscriptions()
         AirOfficial.ensure()
+        // the chief of AIR Chat is the very first account ever created
+        scope.launch {
+            runCatching { AirAccount.resolveOwner() }
+            AirOfficial.ensure()
+        }
         AirNetworkService.start(appContext)
         helloJob = scope.launch {
             while (isActive) {
