@@ -1,0 +1,124 @@
+name: AIR Chat PC (Windows EXE)
+
+on:
+  push:
+    branches: [ "dev" ]
+    paths:
+      - "desktop/**"
+      - ".github/workflows/air-chat-windows.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: air-chat-windows-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+env:
+  # Interface only (look and feel): every request goes to the AIR Chat backend on the computer.
+  WEB_REPO: https://github.com/stoatchat/for-web.git
+  WEB_COMMIT: 7e46da7da1c7e4edd6ea5606fa5c0a0b5de54345
+
+jobs:
+  web:
+    name: Interface
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Get the interface sources
+        run: |
+          git init web-src && cd web-src
+          git remote add origin "$WEB_REPO"
+          git fetch --depth 1 origin "$WEB_COMMIT"
+          git checkout FETCH_HEAD
+          git submodule update --init --depth 1 packages/stoat.js packages/solid-livekit-components
+
+      - name: Build the AIR Chat interface
+        working-directory: web-src
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.3.0 --activate
+          pnpm install --frozen-lockfile
+          pnpm --filter stoat.js build
+          pnpm --filter solid-livekit-components build
+          cd packages/client
+          node scripts/copyAssets.mjs
+          node "$GITHUB_WORKSPACE/desktop/web-patches/apply.mjs" .
+          printf 'VITE_HOST=127.0.0.1:47821\nVITE_API_URL=http://127.0.0.1:47821/api\n' > .env
+          pnpm exec panda codegen
+          pnpm exec lingui extract
+          pnpm exec lingui compile --typescript
+          pnpm exec vite build
+          ls dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: air-chat-web
+          path: web-src/packages/client/dist
+
+  backend-test:
+    name: Peer-to-peer test (real network)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Test
+        working-directory: desktop
+        run: |
+          npm ci --ignore-scripts
+          npm rebuild node-datachannel
+          node test/p2p.mjs
+
+  exe:
+    name: Windows EXE
+    needs: [web, backend-test]
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: air-chat-web
+          path: desktop/web
+
+      - name: Build the EXE
+        working-directory: desktop
+        shell: bash
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: |
+          npm ci
+          npx electron-builder --win --x64 --publish never
+          ls dist
+
+      - name: Publish the EXE on GitHub
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: air-chat-pc-${{ github.run_number }}
+          name: AIR Chat PC ${{ github.run_number }} (Windows)
+          target_commitish: ${{ github.sha }}
+          body: |
+            AIR Chat pour Windows (PC).
+
+            - **AIR-Chat-Setup-1.0.0.exe** : installateur (raccourci sur le bureau et dans le menu Démarrer).
+            - **AIR-Chat-Portable-1.0.0.exe** : version portable, sans installation.
+
+            Même réseau peer-to-peer que l'application Android : le PC et le téléphone se parlent directement.
+            Aucun service Stoat n'est utilisé.
+          files: |
+            desktop/dist/AIR-Chat-Setup-*.exe
+            desktop/dist/AIR-Chat-Portable-*.exe

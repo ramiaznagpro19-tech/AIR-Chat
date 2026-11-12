@@ -1,0 +1,72 @@
+{
+  "name": "air-chat-desktop",
+  "productName": "AIR Chat",
+  "version": "1.0.0",
+  "description": "AIR Chat pour Windows",
+  "main": "src/main.js",
+  "type": "module",
+  "author": "AIR Chat",
+  "license": "AGPL-3.0",
+  "scripts": {
+    "start": "electron .",
+    "backend": "node src/standalone.js",
+    "test": "node test/run.js",
+    "dist": "electron-builder --win --x64 --publish never"
+  },
+  "dependencies": {
+    "@noble/curves": "^1.9.2",
+    "@noble/hashes": "^1.8.0",
+    "node-datachannel": "^0.29.0",
+    "ws": "^8.18.3"
+  },
+  "devDependencies": {
+    "electron": "37.2.6",
+    "electron-builder": "26.0.12"
+  },
+  "build": {
+    "appId": "chat.air.desktop",
+    "productName": "AIR Chat",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "web/**/*",
+      "build/icon.png",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "node_modules/node-datachannel/**"
+    ],
+    "win": {
+      "icon": "build/icon.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "shortcutName": "AIR Chat",
+      "artifactName": "AIR-Chat-Setup-${version}.exe",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "createDesktopShortcut": true
+    },
+    "portable": {
+      "artifactName": "AIR-Chat-Portable-${version}.exe"
+    },
+    "npmRebuild": false
+  }
+}
