@@ -794,7 +794,7 @@ object AirLocalServer {
                             old == null -> emit(frame("ChannelCreate", channelJson(c)))
                             old != c && c.kind == AirConversation.KIND_SERVER -> {
                                 emit(frame("ServerUpdate", JSONObject().put("id", serverId(c.id)).put("data", serverJson(c))))
-                                (c.members - old.members).forEach { member ->
+                                (c.members - (old?.members ?: emptySet())).forEach { member ->
                                     emit(frame("ServerMemberJoin", JSONObject().put("id", serverId(c.id)).put("user", userId(member))))
                                 }
                             }
