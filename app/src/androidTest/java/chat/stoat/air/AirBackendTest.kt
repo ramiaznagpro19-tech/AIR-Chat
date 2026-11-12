@@ -94,7 +94,7 @@ class AirBackendTest {
         val channelId = server?.channels?.firstOrNull()?.id
         if (serverId != null && channelId != null) {
             step("fetchChannel") { fetchSingleChannel(channelId) }
-            val messageId = step("sendMessage") { sendMessage(channelId, "Bonjour AIR Chat") }
+            val messageId = step("sendMessage") { org.json.JSONObject(sendMessage(channelId, "Bonjour AIR Chat")).getString("_id") }
             step("fetchMessages") {
                 val m = fetchMessagesFromChannel(channelId, limit = 50, includeUsers = true)
                 check(m.messages?.any { it.content == "Bonjour AIR Chat" } == true) { "message missing: $m" }

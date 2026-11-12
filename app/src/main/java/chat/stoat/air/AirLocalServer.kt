@@ -391,6 +391,8 @@ object AirLocalServer {
             .protocol(Protocol.HTTP_1_1)
             .code(reply.code)
             .message(if (reply.code < 400) "OK" else "Error")
+            // the API layer reads the type from the headers to decode the response
+            .header("Content-Type", if (reply.bytes != null) reply.contentType ?: "application/octet-stream" else "application/json")
             .body(
                 reply.bytes?.toResponseBody((reply.contentType ?: "application/octet-stream").toMediaType())
                     ?: reply.body.toResponseBody(JSON)
@@ -404,7 +406,9 @@ object AirLocalServer {
         ensureStarted() ?: return error(401, "Unauthorized")
         val segments = request.url.pathSegments.filter { it.isNotEmpty() }
         if (request.method == "POST" && segments.size == 1) {
-            val boundary = request.body?.contentType()?.parameter("boundary") ?: return error(400, "BadRequest")
+            val contentType = request.body?.contentType()?.toString() ?: request.header("Content-Type") ?: ""
+            val boundary = Regex("boundary=\"?([^\";]+)\"?").find(contentType)?.groupValues?.get(1)
+                ?: return error(400, "BadRequest")
             val part = parseMultipart(raw, boundary) ?: return error(400, "BadRequest")
             if (part.bytes.size > AirNetwork.MAX_FILE_SIZE) return error(413, "FileTooLarge")
             val meta = AirNetwork.storeFile(segments[0], part.filename, part.contentType, part.bytes)
@@ -745,10 +749,11 @@ object AirLocalServer {
             }
 
             sub == listOf("search") -> {
-                val q = jsonBody(body).optString("query").lowercase()
+                val searchBody = jsonBody(body)
+                val q = searchBody.optString("query").lowercase()
                 val found = messageViews(conversation).filter { q.isNotEmpty() && it.content.lowercase().contains(q) }
                     .sortedByDescending { it.id }.take(100)
-                ok(messagesResponse(conversation, found, includeUsers = true))
+                ok(messagesResponse(conversation, found, includeUsers = searchBody.optBoolean("include_users", false)))
             }
 
             sub == listOf("messages") && method == "GET" -> getMessages(conversation, url)
