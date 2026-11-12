@@ -208,6 +208,8 @@ dependencies {
 
     implementation(libs.glide)
     implementation(libs.glide.compose)
+    // AIR Chat: images go through the built-in peer-to-peer backend
+    implementation("com.github.bumptech.glide:okhttp3-integration:5.0.5")
     ksp(libs.glide.ksp)
 
     implementation(libs.aboutlibraries.core)

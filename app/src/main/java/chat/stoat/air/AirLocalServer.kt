@@ -1335,6 +1335,29 @@ object AirLocalServer {
                 }
             }
 
+            // Profile changes (display name, avatar), including our own
+            launch {
+                var previous = AirNetwork.profiles.value
+                AirNetwork.profiles.collect { current ->
+                    val before = previous
+                    previous = current
+                    current.filter { (k, v) -> before[k] != v }.keys.forEach { key ->
+                        val user = userJson(key)
+                        emit(frame("UserUpdate", JSONObject().apply {
+                            put("id", userId(key))
+                            put("data", JSONObject().apply {
+                                user.optJSONObject("avatar")?.let { put("avatar", it) }
+                                user.optString("display_name").takeIf { it.isNotEmpty() }?.let { put("display_name", it) }
+                            })
+                            val cleared = org.json.JSONArray()
+                            if (!user.has("avatar")) cleared.put("Avatar")
+                            if (!user.has("display_name")) cleared.put("DisplayName")
+                            if (cleared.length() > 0) put("clear", cleared)
+                        }))
+                    }
+                }
+            }
+
             // The official server hidden or shown again
             launch {
                 var previous = AirOfficial.isHidden()

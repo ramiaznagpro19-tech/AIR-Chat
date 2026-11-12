@@ -27,7 +27,15 @@ object AirAccount {
     const val USERNAME_KIND = 30420
 
     /** Tag shared by every username reservation (new directory: all older accounts are gone). */
-    const val USERNAME_TOPIC = "air-chat-username-v2"
+    @Volatile
+    var USERNAME_TOPIC = "air-chat-username-v3"
+        private set
+
+    /** Automated tests use their own directory, so they never create real accounts. */
+    fun useTestDirectory() {
+        USERNAME_TOPIC = "air-chat-username-test"
+        ownerKey = ""
+    }
 
     /**
      * The chief of AIR Chat (owner of the official server): the very first account ever
@@ -37,7 +45,7 @@ object AirAccount {
     var ownerKey: String = ""
         private set
 
-    private const val OWNER_FILE = "owner2.txt"
+    private const val OWNER_FILE = "owner3.txt"
 
     /** Looks up (once) who created the very first account. */
     suspend fun resolveOwner(): String? {
@@ -91,7 +99,7 @@ object AirAccount {
         appDir = context.applicationContext.filesDir
         runCatching { java.io.File(appDir, OWNER_FILE).takeIf { it.exists() }?.readText()?.trim() }
             .getOrNull()?.takeIf { it.length == 64 }?.let { ownerKey = it }
-        vault = AirVault(context.applicationContext, "account2.vault")
+        vault = AirVault(context.applicationContext, "account3.vault")
         vault.read()?.let { raw ->
             runCatching {
                 val json = JSONObject(raw)
@@ -131,7 +139,7 @@ object AirAccount {
         return Secp256k1.privateKeyFromSeed(seed)
     }
 
-    private fun usernameTag(username: String) = "airchat-v2:username:${normalize(username)}"
+    private fun usernameTag(username: String) = "$USERNAME_TOPIC:${normalize(username)}"
 
     /** Owner (public key) of a username, or null when it is free. */
     suspend fun ownerOf(username: String): String? {

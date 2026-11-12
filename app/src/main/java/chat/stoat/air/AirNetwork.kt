@@ -177,7 +177,7 @@ object AirNetwork {
         if (session?.publicKey == newSession.publicKey) return
         stop()
         session = newSession
-        vault = AirVault(appContext, "net2_${newSession.publicKey.take(16)}.vault")
+        vault = AirVault(appContext, "net3_${newSession.publicKey.take(16)}.vault")
         load()
         NostrRelayPool.start()
         subscriptionId = NostrRelayPool.subscribe(

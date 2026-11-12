@@ -14,8 +14,8 @@ object AirOfficial {
     const val NAME = "AIR Chat"
     private const val HIDDEN_SETTING = "air:official_hidden"
 
-    val serverId: String = "server:" + AirCrypto.hex(AirCrypto.sha256("$LINK#v2".toByteArray())).take(24)
-    val generalChannelId: String = "channel:" + AirCrypto.hex(AirCrypto.sha256("$LINK#v2#general".toByteArray())).take(24)
+    val serverId: String = "server:" + AirCrypto.hex(AirCrypto.sha256("$LINK#v3".toByteArray())).take(24)
+    val generalChannelId: String = "channel:" + AirCrypto.hex(AirCrypto.sha256("$LINK#v3#general".toByteArray())).take(24)
 
     /** Conversations open to everyone: the official server and all its channels. */
     fun isOpen(conversationId: String): Boolean {

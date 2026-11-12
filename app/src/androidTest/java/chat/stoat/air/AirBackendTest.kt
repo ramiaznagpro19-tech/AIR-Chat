@@ -63,6 +63,7 @@ class AirBackendTest {
         val username = "t" + System.currentTimeMillis().toString().takeLast(9)
         val password = "abcd123!?"
 
+        AirAccount.useTestDirectory()
         step("root") { getRootRoute() }
         step("register") {
             val r = register(RegistrationBody(email = username, password = password, captcha = ""))
@@ -126,6 +127,24 @@ class AirBackendTest {
             )
             val fileId = step("upload") { uploadToAutumn(png, "a.png", "attachments", ContentType.Image.PNG) }
             if (fileId != null) step("sendAttachment") { sendMessage(channelId, "image", attachments = listOf(fileId)) }
+            val avatarFile = step("uploadAvatar") { uploadToAutumn(png, "avatar.png", "avatars", ContentType.Image.PNG) }
+            if (avatarFile != null) {
+                step("patchSelf avatar") { patchSelf(avatar = avatarFile) }
+                step("avatar in profile") {
+                    val self = fetchSelf()
+                    check(self.avatar?.id == avatarFile) { "avatar not saved: ${self.avatar}" }
+                }
+                step("avatar loads in images") {
+                    val ctx = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
+                    val bmp = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        com.bumptech.glide.Glide.with(ctx).asBitmap()
+                            .load("${chat.stoat.core.model.data.STOAT_FILES}/avatars/$avatarFile")
+                            .submit().get(30, java.util.concurrent.TimeUnit.SECONDS)
+                    }
+                    check(bmp.width == 1) { "bad bitmap ${bmp.width}" }
+                    "bitmap ${bmp.width}x${bmp.height}"
+                }
+            }
             val emojiFile = step("uploadEmoji") { uploadToAutumn(png, "e.png", "emojis", ContentType.Image.PNG) }
             if (emojiFile != null) step("createEmoji") { createEmoji(emojiFile, serverId, "air") }
             step("joinOfficial") { chat.stoat.api.routes.invites.joinInviteByCode("AIR.CHAT.2026!").also { check(it.ok) } }
