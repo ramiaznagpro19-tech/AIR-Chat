@@ -158,6 +158,27 @@ class AirBackendTest {
             step("joinOfficial") { chat.stoat.api.routes.invites.joinInviteByCode("AIR.CHAT.2026!").also { check(it.ok) } }
         }
 
+        // Phone <-> PC: an AIR Chat PC account (desktop app backend) answers on the same network
+        val pcbot = androidx.test.platform.app.InstrumentationRegistry.getArguments().getString("pcbot")
+        if (!pcbot.isNullOrBlank()) {
+            step("PC: add the PC account as friend") { chat.stoat.api.routes.user.friendUser(pcbot) }
+            step("PC: message answered by the PC") {
+                val botKey = AirNetwork.contacts.value.values.firstOrNull { it.username == pcbot }?.publicKey
+                checkNotNull(botKey) { "PC account not found" }
+                val dm = chat.stoat.api.routes.user.openDM(AirLocalServer.userId(botKey))
+                val dmId = checkNotNull(dm.id)
+                sendMessage(dmId, "ping du téléphone")
+                var reply: String? = null
+                for (i in 0 until 75) {
+                    delay(2_000)
+                    reply = fetchMessagesFromChannel(dmId, limit = 20, includeUsers = false).messages
+                        ?.firstOrNull { it.content?.startsWith("pong du PC") == true }?.content
+                    if (reply != null) break
+                }
+                checkNotNull(reply) { "no answer from the PC (online: ${AirNetwork.online.value.size})" }
+            }
+        }
+
         println("AIRTEST SUMMARY failures=${failures.size}")
         failures.forEach { println("AIRTEST FAILURE $it") }
         if (failures.isNotEmpty()) fail(failures.joinToString("\n"))
