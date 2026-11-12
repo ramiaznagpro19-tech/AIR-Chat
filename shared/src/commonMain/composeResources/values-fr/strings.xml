@@ -371,7 +371,7 @@
     <string name="settings_appearance_colour_overrides_surface_tint">Teinte de la surface</string>
     <string name="settings_appearance_colour_overrides_inverse_surface">Surface inversée</string>
     <string name="settings_appearance_colour_overrides_inverse_on_surface">Inversé sur la surface</string>
-    <string name="discover">Découvrir AIR Chat</string>
+    <string name="discover">Découvrez AIR Chat</string>
     <string name="share_target_attachment_too_large">Cette pièce jointe est trop volumineuse pour AIR Chat ($1$s maximum).</string>
     <string name="share_target_search_channels">Rechercher des salons</string>
     <string name="share_target_select_channel">Sélectionner un salon où partager.</string>
@@ -1322,4 +1322,22 @@
     <string name="airnet_call_encrypted">Appel direct, chiffré de bout en bout</string>
     <string name="airnet_join_owner_offline">Impossible de rejoindre : le propriétaire de ce serveur doit avoir AIR Chat ouvert pour vous faire entrer. Réessayez plus tard.</string>
     <string name="airnet_uploads_unavailable">L'envoi de fichiers n'est pas encore disponible sur AIR Chat.</string>
+    <string name="airdisc_title">Découvrez AIR Chat</string>
+    <string name="airdisc_intro">Les serveurs publics d'au moins 1 000 000 de membres.</string>
+    <string name="airdisc_empty">Aucun serveur n'a encore atteint un million de membres.</string>
+    <string name="airdisc_members">%1$s membres</string>
+    <string name="airdisc_join">Rejoindre</string>
+    <string name="airdisc_joined">Serveur rejoint</string>
+    <string name="airdisc_official">Serveur officiel AIR Chat</string>
+    <string name="airdisc_official_show">Afficher le serveur AIR Chat</string>
+    <string name="airdisc_official_desc">Tout le monde en est membre. Impossible de le quitter, mais vous pouvez le masquer.</string>
+    <string name="airdisc_my_servers">Mes serveurs</string>
+    <string name="airdisc_progress">%1$s / 1 000 000 membres</string>
+    <string name="airdisc_request">Demander à apparaître sur Découvrez AIR Chat</string>
+    <string name="airdisc_description_hint">Description affichée sur Découvrez AIR Chat</string>
+    <string name="airdisc_requested">Votre serveur apparaît maintenant sur Découvrez AIR Chat.</string>
+    <string name="airdisc_request_failed">Impossible de publier votre serveur. Vérifiez qu'il a une photo et réessayez.</string>
+    <string name="airdisc_link">Lien : %1$s</string>
+    <string name="airdisc_join_link">Rejoindre un serveur avec son lien</string>
+    <string name="airdisc_link_hint">air.chat.abcd123E</string>
 </resources>

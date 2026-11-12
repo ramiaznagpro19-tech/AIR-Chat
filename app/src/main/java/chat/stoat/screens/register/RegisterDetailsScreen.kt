@@ -65,6 +65,8 @@ import org.jetbrains.compose.resources.stringResource
 class RegisterDetailsScreenViewModel : ViewModel() {
     var email by mutableStateOf("")
     var password by mutableStateOf("")
+    /** AIR Chat: profile picture chosen while creating the account */
+    var avatar by mutableStateOf<chat.stoat.air.ui.PickedImage?>(null)
     var error by mutableStateOf<String?>(null)
     private var captchaToken by mutableStateOf<String?>(null)
 
@@ -96,6 +98,12 @@ class RegisterDetailsScreenViewModel : ViewModel() {
                     StoatAPIHost.storage.kvStorage.set("sessionId", hints.id)
                     StoatAPI.loginAs(hints.token)
                     StoatAPI.setSessionId(hints.id)
+                    avatar?.let { picked ->
+                        runCatching {
+                            val avatarId = chat.stoat.air.ui.uploadPickedImage(picked, "avatars")
+                            chat.stoat.api.routes.user.patchSelf(avatar = avatarId)
+                        }
+                    }
                     navController.navigate("chat") {
                         popUpTo(0) { inclusive = true }
                     }
@@ -167,6 +175,13 @@ fun RegisterDetailsScreen(
                 verticalArrangement = Arrangement.Center,
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
+                chat.stoat.air.ui.AirImagePicker(
+                    image = viewModel.avatar,
+                    onPicked = { viewModel.avatar = it },
+                    size = 88.dp
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+
                 FormTextField(
                     value = viewModel.email,
                     onChange = { viewModel.email = it },

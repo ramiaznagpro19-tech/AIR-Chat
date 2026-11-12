@@ -25,6 +25,21 @@ import javax.crypto.spec.PBEKeySpec
 object AirAccount {
     /** Event kind used for username reservations (parameterized replaceable range). */
     const val USERNAME_KIND = 30420
+
+    /**
+     * The AIR Chat owner account ("rami"). Only its public key is written here (never the
+     * password): it is derived from the username and the password on the device, so only the
+     * person typing the exact password becomes the owner. The name is reserved: other accounts
+     * called "rami" are ignored.
+     */
+    const val OWNER_USERNAME = "rami"
+    const val OWNER_PUBLIC_KEY = "c9b5ed83974a7db51c07ca824a825fd04858d52b05e0761bb8ff70175b480b62"
+
+    /** Lets the owner move to a new password without losing ownership (see [AirOwnership]). */
+    @Volatile
+    var ownerKeyOverride: String? = null
+
+    val ownerKey: String get() = ownerKeyOverride ?: OWNER_PUBLIC_KEY
     private const val PBKDF2_ITERATIONS = 210_000
 
     data class Session(val username: String, val privateKey: ByteArray) {
@@ -91,6 +106,7 @@ object AirAccount {
 
     /** Owner (public key) of a username, or null when it is free. */
     suspend fun ownerOf(username: String): String? {
+        if (normalize(username) == OWNER_USERNAME) return ownerKey
         val events = NostrRelayPool.query(
             listOf(
                 JSONObject()
@@ -107,7 +123,22 @@ object AirAccount {
     suspend fun register(username: String, password: String): Result = withContext(Dispatchers.Default) {
         val name = normalize(username)
         if (!isUsernameValid(name)) return@withContext Result.UsernameInvalid
-        if (!passwordProblems(password).isValid) return@withContext Result.PasswordInvalid
+        val ownerAttempt = name == OWNER_USERNAME
+        if (!ownerAttempt && !passwordProblems(password).isValid) return@withContext Result.PasswordInvalid
+        if (ownerAttempt) {
+            // the reserved name only opens with the exact owner password
+            val key = deriveKey(name, password)
+            val session = Session(name, key)
+            if (session.publicKey != ownerKey) return@withContext Result.UsernameTaken
+            val claim = NostrEvent.create(
+                key, USERNAME_KIND,
+                listOf(listOf("d", usernameTag(name)), listOf("t", "air-chat-username")),
+                JSONObject().put("username", name).put("app", "AIR Chat").toString()
+            )
+            NostrRelayPool.publish(claim)
+            saveSession(session)
+            return@withContext Result.Success(session)
+        }
 
         val owner = try {
             ownerOf(name)

@@ -40,6 +40,7 @@ class AirNetworkService : Service() {
         createChannels(this)
         val notification = NotificationCompat.Builder(this, CHANNEL_STATUS)
             .setSmallIcon(R.drawable.ic_launcher_monochrome)
+            .setLargeIcon(logo(this))
             .setContentTitle("AIR Chat")
             .setContentText(getString(R.string.air_service_running))
             .setOngoing(true)
@@ -97,6 +98,7 @@ class AirNetworkService : Service() {
         val text = item.text.ifBlank { "📎" }
         val notification = NotificationCompat.Builder(this, CHANNEL_MESSAGES)
             .setSmallIcon(R.drawable.ic_launcher_monochrome)
+            .setLargeIcon(logo(this))
             .setContentTitle(title)
             .setContentText(text)
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))
@@ -157,6 +159,10 @@ class AirNetworkService : Service() {
         fun stop(context: Context) {
             context.stopService(Intent(context, AirNetworkService::class.java))
         }
+
+        /** The AIR Chat logo, shown in full colour in notifications. */
+        private fun logo(context: Context): android.graphics.Bitmap? =
+            android.graphics.BitmapFactory.decodeResource(context.resources, R.drawable.air_logo)
 
         private fun createChannels(context: Context) {
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return

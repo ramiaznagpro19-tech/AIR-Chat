@@ -39,7 +39,7 @@ import chat.stoat.shared.resources.Res
 import chat.stoat.shared.resources.community_guidelines
 import chat.stoat.shared.resources.login_bg
 import chat.stoat.shared.resources.privacy_policy
-import chat.stoat.shared.resources.stoat_logo_white
+import chat.stoat.shared.resources.air_logo
 import chat.stoat.shared.resources.terms_of_service
 import com.chuckerteam.chucker.api.Chucker
 import org.jetbrains.compose.resources.painterResource
@@ -104,11 +104,8 @@ private fun LeadPart(windowSizeClass: WindowSizeClass) {
             Spacer(Modifier.height(64.dp))
         }
         Image(
-            painter = painterResource(Res.drawable.stoat_logo_white),
+            painter = painterResource(Res.drawable.air_logo),
             contentDescription = null,
-            colorFilter = ColorFilter.tint(
-                MaterialTheme.colorScheme.onBackground
-            ),
             modifier = if (windowSizeClass.widthSizeClass <= WindowWidthSizeClass.Compact)
                 Modifier.fillMaxWidth(0.5f) else Modifier.height(32.dp)
         )

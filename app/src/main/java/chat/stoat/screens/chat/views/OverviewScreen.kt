@@ -1,6 +1,8 @@
 package chat.stoat.screens.chat.views
 
-import android.content.Intent
+import chat.stoat.shared.resources.airdisc_title
+import chat.stoat.shared.resources.airdisc_intro
+android.content.Intent
 import android.util.Log
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -334,34 +336,10 @@ fun OverviewScreen(
                                 body = { Text(stringResource(Res.string.overview_screen_settings_description)) }
                             )
                         }
-                        item(key = "shareProfile") {
-                            OverviewScreenLink(
-                                onClick = {
-                                    showUserCardSheet = true
-                                },
-                                backgroundColour = MaterialTheme.colorScheme.tertiaryContainer,
-                                foregroundColour = MaterialTheme.colorScheme.onTertiaryContainer,
-                                title = {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        Icon(
-                                            painter = painterResource(Res.drawable.ic_ios_share_24dp),
-                                            contentDescription = null,
-                                            modifier = Modifier.size(22.dp)
-                                        )
-                                        Text(stringResource(Res.string.overview_screen_share_profile))
-                                    }
-                                },
-                                body = { Text(stringResource(Res.string.overview_screen_share_profile_description)) }
-                            )
-                        }
-
                         item(key = "changelog") {
                             OverviewScreenLink(
                                 onClick = {
-                                    navController.navigate("changelog/latest")
+                                    navController.navigate("discover")
                                 },
                                 backgroundColour = MaterialTheme.colorScheme.errorContainer,
                                 foregroundColour = MaterialTheme.colorScheme.onErrorContainer,
@@ -375,10 +353,10 @@ fun OverviewScreen(
                                             contentDescription = null,
                                             modifier = Modifier.size(22.dp)
                                         )
-                                        Text(stringResource(Res.string.overview_screen_changelog))
+                                        Text(stringResource(Res.string.airdisc_title))
                                     }
                                 },
-                                body = { Text(stringResource(Res.string.overview_screen_changelog_description)) }
+                                body = { Text(stringResource(Res.string.airdisc_intro)) }
                             )
                         }
 

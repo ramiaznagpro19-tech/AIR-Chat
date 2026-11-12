@@ -64,7 +64,7 @@ import chat.stoat.shared.resources.about_section_oss_licenses
 import chat.stoat.shared.resources.copied
 import chat.stoat.shared.resources.ic_chevron_forward_24dp
 import chat.stoat.shared.resources.ic_content_copy_24dp
-import chat.stoat.shared.resources.stoat_logo_white
+import chat.stoat.shared.resources.air_logo
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.getString
 import org.jetbrains.compose.resources.painterResource
@@ -131,9 +131,8 @@ fun AboutScreen(navController: NavController, viewModel: AboutViewModel = viewMo
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Image(
-                    painter = painterResource(Res.drawable.stoat_logo_white),
+                    painter = painterResource(Res.drawable.air_logo),
                     contentDescription = stringResource(Res.string.about_full_name),
-                    colorFilter = ColorFilter.tint(LocalContentColor.current),
                     modifier = Modifier
                         .width(250.dp)
                 )

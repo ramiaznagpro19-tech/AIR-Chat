@@ -39,7 +39,7 @@ import chat.stoat.api.settings.LoadedSettings
 import chat.stoat.core.model.settings.Theme
 import chat.stoat.shared.resources.Res
 import chat.stoat.shared.resources.login_bg
-import chat.stoat.shared.resources.stoat_wordmark_white
+import chat.stoat.shared.resources.air_logo
 import org.jetbrains.compose.resources.painterResource
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -96,7 +96,7 @@ fun NewLoginExperienceMockup(navController: NavController) {
                     ) {
                         Spacer(modifier = Modifier.height(64.dp))
                         Image(
-                            painter = painterResource(Res.drawable.stoat_wordmark_white),
+                            painter = painterResource(Res.drawable.air_logo),
                             contentDescription = null,
                             colorFilter = if (LoadedSettings.theme == Theme.M3Dynamic) ColorFilter.tint(
                                 MaterialTheme.colorScheme.onBackground

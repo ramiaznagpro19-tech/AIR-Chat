@@ -1,6 +1,7 @@
 package chat.stoat.screens.settings
 
-import android.content.Intent
+import chat.stoat.shared.resources.airdisc_title
+android.content.Intent
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -354,7 +355,7 @@ fun SettingsScreen(
 
                     SettingsListItem(
                         first = true,
-                        headlineContent = { Text(text = stringResource(Res.string.settings_changelog)) },
+                        headlineContent = { Text(text = stringResource(Res.string.airdisc_title)) },
                         leadingContent = {
                             SettingsIcon {
                                 Icon(
@@ -365,7 +366,7 @@ fun SettingsScreen(
                         },
                         modifier = Modifier
                             .testTag("settings_view_changelog")
-                            .clickable { navController.navigate("changelog/latest") }
+                            .clickable { navController.navigate("discover") }
                     )
                     Spacer(Modifier.height(2.dp))
                     SettingsListItem(

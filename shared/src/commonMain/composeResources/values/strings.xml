@@ -1485,4 +1485,22 @@
     <string name="airnet_call_encrypted">Direct call, end-to-end encrypted</string>
     <string name="airnet_join_owner_offline">Could not join: the owner of this server must have AIR Chat open to let you in. Try again later.</string>
     <string name="airnet_uploads_unavailable">Sending files is not available yet on AIR Chat.</string>
+    <string name="airdisc_title">Discover AIR Chat</string>
+    <string name="airdisc_intro">Public servers with at least 1,000,000 members.</string>
+    <string name="airdisc_empty">No server has reached one million members yet.</string>
+    <string name="airdisc_members">%1$s members</string>
+    <string name="airdisc_join">Join</string>
+    <string name="airdisc_joined">Server joined</string>
+    <string name="airdisc_official">Official AIR Chat server</string>
+    <string name="airdisc_official_show">Show the AIR Chat server</string>
+    <string name="airdisc_official_desc">Everyone is a member of it. You cannot leave it, but you can hide it.</string>
+    <string name="airdisc_my_servers">My servers</string>
+    <string name="airdisc_progress">%1$s / 1,000,000 members</string>
+    <string name="airdisc_request">Ask to appear on Discover AIR Chat</string>
+    <string name="airdisc_description_hint">Description shown on Discover AIR Chat</string>
+    <string name="airdisc_requested">Your server now appears on Discover AIR Chat.</string>
+    <string name="airdisc_request_failed">Could not publish your server. Check that it has an icon and try again.</string>
+    <string name="airdisc_link">Link: %1$s</string>
+    <string name="airdisc_join_link">Join a server with its link</string>
+    <string name="airdisc_link_hint">air.chat.abcd123E</string>
 </resources>

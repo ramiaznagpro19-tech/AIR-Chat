@@ -51,7 +51,7 @@ import chat.stoat.shared.resources.login_onboarding_body
 import chat.stoat.shared.resources.login_onboarding_heading
 import chat.stoat.shared.resources.privacy_policy
 import chat.stoat.shared.resources.signup
-import chat.stoat.shared.resources.stoat_logo_white
+import chat.stoat.shared.resources.air_logo
 import chat.stoat.shared.resources.terms_of_service
 import com.chuckerteam.chucker.api.Chucker
 import org.jetbrains.compose.resources.painterResource
@@ -79,8 +79,7 @@ fun LoginGreetingScreen(navController: NavController) {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Image(
-                painter = painterResource(Res.drawable.stoat_logo_white),
-                colorFilter = ColorFilter.tint(LocalContentColor.current),
+                painter = painterResource(Res.drawable.air_logo),
                 contentDescription = "AIR Chat",
                 contentScale = ContentScale.Fit,
                 modifier = Modifier

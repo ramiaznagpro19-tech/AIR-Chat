@@ -13,7 +13,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.navigation.NavController
-import chat.stoat.composables.screens.services.DiscoverView
 import chat.stoat.shared.resources.Res
 import chat.stoat.shared.resources.back
 import chat.stoat.shared.resources.discover
@@ -52,7 +51,8 @@ fun DiscoverScreen(navController: NavController) {
                 .padding(pv)
                 .fillMaxSize()
         ) {
-            DiscoverView()
+            // AIR Chat: servers of AIR Chat with at least one million members
+            chat.stoat.air.ui.AirDiscoverView()
         }
     }
 }

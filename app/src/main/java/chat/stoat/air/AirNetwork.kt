@@ -50,6 +50,8 @@ data class AirConversation(
     val owner: String? = null,
     /** For a server: private key of its invitations, known by every member. */
     val secret: String? = null,
+    /** For a server: its public link, e.g. air.chat.abnf372H */
+    val link: String? = null,
 ) {
     companion object {
         const val KIND_DM = "dm"
@@ -101,6 +103,10 @@ data class AirItem(
         const val DELETE = "delete"
         const val REACT = "react"
         const val UNREACT = "unreact"
+        /** Server administration (roles, bans, emojis, settings…), see [AirServers]. */
+        const val OP = "op"
+        /** "X joined the server" */
+        const val JOIN = "join"
 
         fun fromJson(json: JSONObject) = AirItem(
             id = json.getString("id"),
@@ -183,6 +189,7 @@ object AirNetwork {
             )
         ) { onSignalEvent(it) }
         refreshInviteSubscriptions()
+        AirOfficial.ensure()
         AirNetworkService.start(appContext)
         helloJob = scope.launch {
             while (isActive) {
@@ -396,6 +403,9 @@ object AirNetwork {
         )
         putConversation(server)
         putConversation(general)
+        AirServers.ensureJoinItem(server.id)
+        // reserve its public link (air.chat.xxxx000X) in the background
+        scope.launch { ensureLink(server.id) }
         return server to general
     }
 
@@ -440,12 +450,19 @@ object AirNetwork {
 
     /** Leaves (hides) a conversation on this device. */
     fun leaveConversation(conversationId: String) {
+        if (AirOfficial.isOpen(conversationId)) {
+            AirOfficial.setHidden(true)
+            return
+        }
         synchronized(lock) {
             val ids = setOf(conversationId) + channelsOf(conversationId).map { it.id }
             _conversations.value = _conversations.value - ids
             save()
         }
     }
+
+    /** Adds or replaces a conversation created on this device (used by the official server). */
+    internal fun upsertConversation(conversation: AirConversation) = putConversation(conversation)
 
     fun removeContact(publicKey: String) {
         synchronized(lock) {
@@ -474,6 +491,20 @@ object AirNetwork {
         return AirCrypto.b64(payload)
     }
 
+    /** Gives a server its unique public link, if it does not have one yet. */
+    suspend fun ensureLink(serverId: String): String? {
+        val server = _conversations.value[serverId] ?: return null
+        server.link?.let { return it }
+        if (server.owner != selfKey) return null
+        val secret = server.secret ?: Secp256k1.hex(Secp256k1.randomPrivateKey())
+        val invitePublic = Secp256k1.hex(Secp256k1.publicKey(Secp256k1.unhex(secret)))
+        val link = AirServers.claimLink(server.copy(secret = secret), invitePublic) ?: return null
+        val updated = (_conversations.value[serverId] ?: server).copy(secret = secret, link = link)
+        putConversation(updated)
+        shareConversation(updated)
+        return link
+    }
+
     data class InviteInfo(val inviteKey: String, val serverId: String, val name: String)
 
     fun parseInvite(code: String): InviteInfo? = runCatching {
@@ -494,6 +525,10 @@ object AirNetwork {
     private fun onJoinRequest(from: String, serverId: String) {
         val server = _conversations.value[serverId] ?: return
         if (server.kind != AirConversation.KIND_SERVER || selfKey !in server.members) return
+        if (AirServers.state(server).bans.containsKey(from)) return
+        if (from in AirServers.state(server).removed) {
+            post(serverId, AirItem.OP, JSONObject().put("user", from).toString(), title = "readd")
+        }
         val updated = addMembers(serverId, setOf(from)) ?: return
         // make sure the new member receives the server and every channel
         shareConversation(updated, only = setOf(from))
@@ -1002,6 +1037,8 @@ object AirNetwork {
 
     private fun onPeerOpen(peer: Peer) {
         _online.value = _online.value + peer.publicKey
+        // the official AIR Chat server is open to everyone
+        AirOfficial.openConversationIds().forEach { sendSync(peer, it) }
         sendProfile(peer)
         // files we are still waiting for
         fileMetas.keys.filter { !hasFile(it) && wantedFiles.containsKey(it) }
@@ -1053,9 +1090,12 @@ object AirNetwork {
                 val accepted = incoming.filter { item ->
                     val conversation = conversationFor(peer.publicKey, item.conversation)
                         ?: (if (item.conversation == directConversationId(peer.publicKey)) openDirect(peer.publicKey) else null)
-                    conversation != null && item.author in conversation.members && item.isValid()
+                    conversation != null && item.isValid() &&
+                            (item.author in conversation.members || AirOfficial.isOpen(conversation.id)) &&
+                            !AirServers.isBlocked(conversation.id, item.author)
                 }
                 val added = addItems(accepted)
+                AirOfficial.onItems(added)
                 added.groupBy { it.conversation }.forEach { (conversationId, list) ->
                     broadcastItems(conversationId, list, except = peer.publicKey)
                 }
@@ -1066,6 +1106,7 @@ object AirNetwork {
     /** The conversation, if both this device and [peer] are members of it. */
     private fun conversationFor(peer: String, conversationId: String): AirConversation? {
         val conversation = _conversations.value[conversationId] ?: return null
+        if (AirOfficial.isOpen(conversationId)) return conversation
         return conversation.takeIf { peer in it.members && selfKey in it.members }
     }
 
@@ -1078,13 +1119,17 @@ object AirNetwork {
             val merged = existing?.copy(
                 members = existing.members + incoming.members,
                 name = if (existing.owner != null && from == existing.owner) incoming.name else existing.name,
-                secret = existing.secret ?: incoming.secret
+                secret = existing.secret ?: incoming.secret,
+                link = existing.link ?: incoming.link
             ) ?: incoming
             _conversations.value = _conversations.value + (merged.id to merged)
             save()
         }
         incoming.members.filter { it != selfKey && peers[it]?.isOpen != true }.forEach { sendHello(it) }
-        if (incoming.kind == AirConversation.KIND_SERVER) refreshInviteSubscriptions()
+        if (incoming.kind == AirConversation.KIND_SERVER) {
+            refreshInviteSubscriptions()
+            AirServers.ensureJoinItem(incoming.id)
+        }
     }
 
     private fun sendConversation(peer: Peer, conversation: AirConversation) {
@@ -1093,8 +1138,9 @@ object AirNetwork {
 
     private fun broadcastItems(conversationId: String, list: List<AirItem>, except: String?) {
         val conversation = _conversations.value[conversationId] ?: return
-        conversation.members
-            .filter { it != selfKey && it != except }
+        val targets = if (AirOfficial.isOpen(conversationId)) peers.keys else conversation.members
+        targets
+            .filter { it != selfKey && it != except && !AirServers.isBlocked(conversationId, it) }
             .mapNotNull { peers[it] }
             .filter { it.isOpen }
             .forEach { sendItems(it, list) }
@@ -1153,7 +1199,7 @@ object AirNetwork {
         put("id", c.id); put("group", c.isGroup); put("name", c.name)
         put("members", JSONArray(c.members.toList())); put("createdAt", c.createdAt)
         put("kind", c.kind); put("parent", c.parent ?: ""); put("owner", c.owner ?: "")
-        put("secret", c.secret ?: "")
+        put("secret", c.secret ?: ""); put("link", c.link ?: "")
     }
 
     private fun conversationFromJson(json: JSONObject): AirConversation? = runCatching {
@@ -1167,6 +1213,7 @@ object AirNetwork {
             parent = json.optString("parent").ifEmpty { null },
             owner = json.optString("owner").ifEmpty { null },
             secret = json.optString("secret").ifEmpty { null },
+            link = json.optString("link").ifEmpty { null },
         )
     }.getOrNull()
 

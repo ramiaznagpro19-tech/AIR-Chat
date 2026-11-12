@@ -1,6 +1,9 @@
 package chat.stoat.sheets
 
-import android.content.Intent
+import chat.stoat.air.ui.AirImagePicker
+import chat.stoat.air.ui.uploadPickedImage
+import chat.stoat.api.routes.server.patchServer
+android.content.Intent
 import android.util.Log
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateContentSize
@@ -358,6 +361,7 @@ fun AddServerSheet(onDismiss: () -> Unit) {
                         }
                     }
                 } else if (step == AddServerSheetStep.CreateServer) {
+                    var serverIcon by remember { mutableStateOf<chat.stoat.air.ui.PickedImage?>(null) }
                     val serverNameState = rememberTextFieldState()
                     val serverNameIsBlank = remember(serverNameState.text) {
                         serverNameState.text.isBlank()
@@ -408,26 +412,16 @@ fun AddServerSheet(onDismiss: () -> Unit) {
                             modifier = Modifier.fillMaxWidth()
                         )
 
-                        val outline = MaterialTheme.colorScheme.outline
                         Column(
                             verticalArrangement = Arrangement.spacedBy(16.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            Canvas(Modifier.size(80.dp)) {
-                                val stroke = Stroke(
-                                    width = 4.dp.toPx(),
-                                    pathEffect = PathEffect.dashPathEffect(
-                                        floatArrayOf(30f, 40f),
-                                        0f
-                                    )
-                                )
-
-                                drawCircle(
-                                    color = outline,
-                                    style = stroke,
-                                    radius = size.minDimension / 2 - stroke.width / 2
-                                )
-                            }
+                            // AIR Chat: choose the server's picture when creating it
+                            AirImagePicker(
+                                image = serverIcon,
+                                onPicked = { serverIcon = it },
+                                size = 80.dp
+                            )
                             Text(
                                 text = when {
                                     serverNameIsBlank -> stringResource(Res.string.add_server_sheet_step_1c_name_placeholder)
@@ -483,6 +477,12 @@ fun AddServerSheet(onDismiss: () -> Unit) {
                                 scope.launch {
                                     try {
                                         val server = createServer(serverNameState.text.toString())
+                                        serverIcon?.let { icon ->
+                                            runCatching {
+                                                val iconId = uploadPickedImage(icon, "icons")
+                                                server.id?.let { patchServer(it, icon = iconId) }
+                                            }
+                                        }
 
                                         // Backend should've already created a channel for us to go to
                                         server.channels?.first()?.id?.let {
