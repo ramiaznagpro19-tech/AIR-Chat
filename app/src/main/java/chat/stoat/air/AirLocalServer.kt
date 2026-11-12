@@ -1,5 +1,7 @@
 package chat.stoat.air
 
+import chat.stoat.core.model.schemas.UserBadges
+
 import android.util.Log
 import chat.stoat.api.internals.LocalBackend
 import chat.stoat.e2ee.AirCrypto
@@ -178,7 +180,7 @@ object AirLocalServer {
             })
             put("online", online)
             put("status", JSONObject().put("presence", if (online) "Online" else "Invisible"))
-            put("badges", 0)
+            put("badges", if (AirAccount.isVerified(publicKey)) UserBadges.Verified.value else 0L)
             put("flags", 0)
         }
     }
@@ -203,8 +205,8 @@ object AirLocalServer {
                 val meta = server?.let { AirServers.state(it).channels[c.id] }
                 put("channel_type", "TextChannel")
                 put("server", serverId(c.parent ?: ""))
-                // every server channel can also hold a voice/video call
-                put("voice", JSONObject().put("max_users", 8))
+                // only voice channels hold calls; text channels stay text channels
+                if (c.voice) put("voice", JSONObject().put("max_users", 8))
                 put("name", meta?.name ?: c.name)
                 meta?.description?.let { put("description", it) }
                 meta?.defaultOverride?.let { (a, d) -> put("default_permissions", JSONObject().put("a", a).put("d", d)) }
@@ -897,14 +899,15 @@ object AirLocalServer {
             sub == listOf("channels") && method == "POST" -> {
                 if (!can(AirServers.MANAGE_CHANNEL)) return denied
                 val name = json.optString("name").ifBlank { "salon" }
+                val voice = json.optString("type").equals("Voice", ignoreCase = true)
                 if (AirOfficial.isOpen(server.id)) {
                     val id = "channel:" + chat.stoat.e2ee.AirCrypto.hex(chat.stoat.e2ee.AirCrypto.randomBytes(12))
-                    AirServers.op(server.id, "channel.create", JSONObject().put("id", id).put("name", name))
+                    AirServers.op(server.id, "channel.create", JSONObject().put("id", id).put("name", name).put("voice", voice))
                     AirOfficial.syncCreatedChannels()
                     val channel = AirNetwork.conversations.value[id] ?: return error(400, "InternalError")
                     return ok(channelJson(channel))
                 }
-                val channel = AirNetwork.createServerChannel(server.id, name) ?: return denied
+                val channel = AirNetwork.createServerChannel(server.id, name, voice) ?: return denied
                 ok(channelJson(channel))
             }
 
@@ -1330,6 +1333,18 @@ object AirLocalServer {
                         emit(frame("UserUpdate", JSONObject().apply {
                             put("id", userId(key))
                             put("data", JSONObject().put("username", AirNetwork.username(key)))
+                        }))
+                    }
+                }
+            }
+
+            // Verified badges found in the directory
+            launch {
+                AirAccount.verifiedKeys.collect { keys ->
+                    keys.forEach { key ->
+                        emit(frame("UserUpdate", JSONObject().apply {
+                            put("id", userId(key))
+                            put("data", JSONObject().put("badges", UserBadges.Verified.value))
                         }))
                     }
                 }

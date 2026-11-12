@@ -133,6 +133,7 @@ fun InReplyTo(
                     platformModeration = author?.id == SpecialUsers.PLATFORM_MODERATION_USER,
                     teamMember = author?.id in TeamMemberFlairs.TEAM_MEMBER_FLAIRS.keys,
                     webhook = message.webhook != null,
+                    verified = author?.badges.let { b -> b != null && (b and chat.stoat.core.model.schemas.UserBadges.Verified.value) != 0L },
                     colour = contentColor.copy(alpha = 0.5f),
                     modifier = Modifier.size(12.dp),
                     followingIfAny = {

@@ -52,6 +52,8 @@ data class AirConversation(
     val secret: String? = null,
     /** For a server: its public link, e.g. air.chat.abnf372H */
     val link: String? = null,
+    /** For a server channel: a voice channel (calls) instead of a text channel. */
+    val voice: Boolean = false,
 ) {
     companion object {
         const val KIND_DM = "dm"
@@ -193,6 +195,7 @@ object AirNetwork {
         // the chief of AIR Chat is the very first account ever created
         scope.launch {
             runCatching { AirAccount.resolveOwner() }
+            runCatching { AirAccount.resolveVerified() }
             AirOfficial.ensure()
         }
         AirNetworkService.start(appContext)
@@ -414,14 +417,14 @@ object AirNetwork {
         return server to general
     }
 
-    fun createServerChannel(serverId: String, name: String): AirConversation? {
+    fun createServerChannel(serverId: String, name: String, voice: Boolean = false): AirConversation? {
         val server = _conversations.value[serverId] ?: return null
         val me = selfKey ?: return null
         if (server.owner != me) return null
         val channel = AirConversation(
             id = newConversationId("channel"), isGroup = true, name = name.trim().take(64),
             members = server.members, createdAt = System.currentTimeMillis(),
-            kind = AirConversation.KIND_CHANNEL, parent = server.id, owner = me
+            kind = AirConversation.KIND_CHANNEL, parent = server.id, owner = me, voice = voice
         )
         putConversation(channel)
         shareConversation(channel)
@@ -1205,6 +1208,7 @@ object AirNetwork {
         put("members", JSONArray(c.members.toList())); put("createdAt", c.createdAt)
         put("kind", c.kind); put("parent", c.parent ?: ""); put("owner", c.owner ?: "")
         put("secret", c.secret ?: ""); put("link", c.link ?: "")
+        if (c.voice) put("voice", true)
     }
 
     private fun conversationFromJson(json: JSONObject): AirConversation? = runCatching {
@@ -1219,6 +1223,7 @@ object AirNetwork {
             owner = json.optString("owner").ifEmpty { null },
             secret = json.optString("secret").ifEmpty { null },
             link = json.optString("link").ifEmpty { null },
+            voice = json.optBoolean("voice", false),
         )
     }.getOrNull()
 

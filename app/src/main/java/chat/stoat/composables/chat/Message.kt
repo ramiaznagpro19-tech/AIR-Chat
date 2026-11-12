@@ -480,6 +480,7 @@ fun Message(
                                     platformModeration = author.id == SpecialUsers.PLATFORM_MODERATION_USER,
                                     teamMember = author.id in TeamMemberFlairs.TEAM_MEMBER_FLAIRS.keys,
                                     webhook = fromWebhook,
+                                    verified = author.badges.let { b -> b != null && (b and chat.stoat.core.model.schemas.UserBadges.Verified.value) != 0L },
                                     colour = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
                                     modifier = Modifier.size(16.dp),
                                     precedingIfAny = {

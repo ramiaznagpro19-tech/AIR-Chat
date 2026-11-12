@@ -67,13 +67,14 @@ object AirOfficial {
     /** Channels added by the owner (or members allowed to) through "channel.create" ops. */
     fun syncCreatedChannels() {
         val server = AirNetwork.conversations.value[serverId] ?: return
-        AirServers.state(server).createdChannels.forEach { (id, name) ->
+        val state = AirServers.state(server)
+        state.createdChannels.forEach { (id, name) ->
             if (!id.startsWith("channel:") || AirNetwork.conversations.value.containsKey(id)) return@forEach
             AirNetwork.upsertConversation(
                 AirConversation(
                     id = id, isGroup = true, name = name, members = server.members,
                     createdAt = System.currentTimeMillis(), kind = AirConversation.KIND_CHANNEL,
-                    parent = serverId, owner = server.owner,
+                    parent = serverId, owner = server.owner, voice = id in state.voiceChannels,
                 )
             )
         }

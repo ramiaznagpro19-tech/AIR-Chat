@@ -22,6 +22,7 @@ import chat.stoat.core.model.schemas.UserBadges
 import chat.stoat.core.model.schemas.has
 import chat.stoat.shared.resources.Res
 import chat.stoat.shared.resources.ic_emoji_people_24dp
+import chat.stoat.shared.resources.ic_verified_24dp__fill
 import chat.stoat.shared.resources.user_badge_active_supporter
 import chat.stoat.shared.resources.user_badge_developer
 import chat.stoat.shared.resources.user_badge_disclosure
@@ -145,8 +146,19 @@ fun BadgeListEntry(badge: UserBadges) {
                 icon = painterResource(Res.drawable.user_badge_reserved_relevant_two)
             )
         }
+
+        UserBadges.Verified.value -> {
+            BadgeListEntryTemplate(
+                label = "Compte vérifié",
+                icon = painterResource(Res.drawable.ic_verified_24dp__fill),
+                tint = VerifiedBlue,
+            )
+        }
     }
 }
+
+/** Colour of the AIR Chat verified badge. */
+val VerifiedBlue = Color(0xFF1D9BF0)
 
 @Composable
 fun UserBadgeList(badges: Long) {
@@ -184,6 +196,7 @@ fun UserBadgeRow(badges: Long) {
                         UserBadges.EarlyAdopter -> painterResource(Res.drawable.user_badge_early_adopter)
                         UserBadges.ReservedRelevantJokeBadge1 -> painterResource(Res.drawable.user_badge_reserved_relevant_one)
                         UserBadges.ReservedRelevantJokeBadge2 -> painterResource(Res.drawable.user_badge_reserved_relevant_two)
+                        UserBadges.Verified -> painterResource(Res.drawable.ic_verified_24dp__fill)
                     },
                     contentDescription = when (badge) {
                         UserBadges.Developer -> stringResource(Res.string.user_badge_developer)
@@ -197,11 +210,12 @@ fun UserBadgeRow(badges: Long) {
                         UserBadges.EarlyAdopter -> stringResource(Res.string.user_badge_early_adopter)
                         UserBadges.ReservedRelevantJokeBadge1 -> stringResource(Res.string.user_badge_reserved_relevant_joke_badge_1)
                         UserBadges.ReservedRelevantJokeBadge2 -> stringResource(Res.string.user_badge_reserved_relevant_joke_badge_2)
+                        UserBadges.Verified -> "Compte vérifié"
                     },
-                    colorFilter = if (badge == UserBadges.ActiveSupporter) {
-                        ColorFilter.tint(LocalContentColor.current)
-                    } else {
-                        null
+                    colorFilter = when (badge) {
+                        UserBadges.ActiveSupporter -> ColorFilter.tint(LocalContentColor.current)
+                        UserBadges.Verified -> ColorFilter.tint(VerifiedBlue)
+                        else -> null
                     },
                     modifier = Modifier
                         .size(32.dp)

@@ -80,6 +80,9 @@ enum class UserBadges(val value: Long) {
     EarlyAdopter(1L shl 8),
     ReservedRelevantJokeBadge1(1L shl 9),
     ReservedRelevantJokeBadge2(1L shl 10),
+
+    /** AIR Chat: verified account. */
+    Verified(1L shl 11),
 }
 
 infix fun Long?.has(flag: UserBadges): Boolean {

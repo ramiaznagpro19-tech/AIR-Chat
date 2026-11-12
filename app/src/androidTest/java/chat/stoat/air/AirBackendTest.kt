@@ -108,7 +108,15 @@ class AirBackendTest {
                 step("deleteMessage") { deleteMessage(channelId, messageId) }
             }
             step("patchServer") { patchServer(serverId, description = "Description") }
-            step("createChannel") { createServerChannel(serverId, "deuxième", ChannelType.TextChannel) }
+            step("createChannel text") {
+                val c = createServerChannel(serverId, "deuxième", ChannelType.TextChannel)
+                check(c.voice == null) { "text channel became voice: $c" }
+            }
+            step("createChannel voice") {
+                val c = createServerChannel(serverId, "vocal", ChannelType.VoiceChannel)
+                check(c.voice != null) { "voice channel is not voice: $c" }
+            }
+            step("main channel is text") { check(fetchSingleChannel(channelId).voice == null) }
             step("patchChannel") { patchChannel(channelId, description = "salon principal") }
             val role = step("createRole") { createServerRole(serverId, "Modo") }
             if (role != null) step("rolePermissions") {

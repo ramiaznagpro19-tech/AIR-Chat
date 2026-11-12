@@ -82,6 +82,7 @@ object AirServers {
         val emojis: Map<String, Emoji>,
         val channels: Map<String, ChannelMeta>,
         val createdChannels: List<Pair<String, String>>,
+        val voiceChannels: Set<String>,
         val joinedAt: Map<String, Long>,
         val listing: Listing?,
     ) {
@@ -156,6 +157,7 @@ object AirServers {
         val emojis = linkedMapOf<String, Emoji>()
         val channels = mutableMapOf<String, ChannelMeta>()
         val createdChannels = mutableListOf<Pair<String, String>>()
+        val voiceChannels = mutableSetOf<String>()
         val joinedAt = mutableMapOf<String, Long>()
         var listing: Listing? = null
 
@@ -250,6 +252,7 @@ object AirServers {
                 "channel.create" -> if (can(MANAGE_CHANNEL)) {
                     val id = payload.optString("id")
                     if (id.isNotBlank()) createdChannels.add(id to payload.optString("name").take(64).ifBlank { "salon" })
+                    if (id.isNotBlank() && payload.optBoolean("voice", false)) voiceChannels.add(id)
                 }
 
                 "channel" -> {
@@ -286,7 +289,7 @@ object AirServers {
 
         return State(
             name, description, icon, banner, defaultPermissions, roles, memberRoles, nicknames, timeouts,
-            removed, bans, emojis, channels, createdChannels, joinedAt, listing
+            removed, bans, emojis, channels, createdChannels, voiceChannels, joinedAt, listing
         )
     }
 

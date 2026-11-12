@@ -17,6 +17,7 @@ import chat.stoat.shared.resources.ic_cloud_24dp
 import chat.stoat.shared.resources.ic_hardware_24dp
 import chat.stoat.shared.resources.ic_link_24dp
 import chat.stoat.shared.resources.ic_smart_toy_24dp
+import chat.stoat.shared.resources.ic_verified_24dp__fill
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
 
@@ -25,7 +26,8 @@ enum class InlineBadge {
     Bridge,
     PlatformModeration,
     TeamMember,
-    Webhook
+    Webhook,
+    Verified
 }
 
 @Composable
@@ -63,6 +65,13 @@ fun InlineBadge(
             modifier = modifier
         )
 
+        InlineBadge.Verified -> Icon(
+            painter = painterResource(Res.drawable.ic_verified_24dp__fill),
+            contentDescription = "Compte vérifié",
+            tint = VerifiedBlue,
+            modifier = modifier
+        )
+
         InlineBadge.Webhook -> Icon(
             painter = painterResource(Res.drawable.ic_cloud_24dp),
             contentDescription = stringResource(Res.string.badge_webhook_alt),
@@ -80,17 +89,25 @@ fun InlineBadges(
     platformModeration: Boolean = false,
     teamMember: Boolean = false,
     webhook: Boolean = false,
+    verified: Boolean = false,
     colour: Color = Color.Unspecified,
     precedingIfAny: @Composable () -> Unit = {},
     followingIfAny: @Composable () -> Unit = {}
 ) {
-    val hasBadges = bot || bridge || platformModeration || teamMember
+    val hasBadges = bot || bridge || platformModeration || teamMember || verified
 
     if (hasBadges) {
         precedingIfAny()
     }
 
     Row {
+        if (verified) {
+            InlineBadge(
+                badge = InlineBadge.Verified,
+                modifier = modifier,
+                colour = colour
+            )
+        }
         if (bot) {
             InlineBadge(
                 badge = InlineBadge.Bot,

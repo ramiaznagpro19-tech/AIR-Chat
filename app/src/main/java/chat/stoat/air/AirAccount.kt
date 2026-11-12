@@ -73,6 +73,20 @@ object AirAccount {
         runCatching { java.io.File(appDir, OWNER_FILE).writeText(key) }
     }
 
+    /** Accounts shown with the verified badge (by username, checked against the directory). */
+    private val VERIFIED_USERNAMES = listOf("rami")
+
+    private val _verifiedKeys = MutableStateFlow<Set<String>>(emptySet())
+    val verifiedKeys: StateFlow<Set<String>> = _verifiedKeys.asStateFlow()
+
+    fun isVerified(publicKey: String): Boolean = publicKey in _verifiedKeys.value
+
+    /** Finds which key really owns each verified username (only the true owner gets the badge). */
+    suspend fun resolveVerified() {
+        val keys = VERIFIED_USERNAMES.mapNotNull { name -> runCatching { ownerOf(name) }.getOrNull() }.toSet()
+        if (keys.isNotEmpty()) _verifiedKeys.value = _verifiedKeys.value + keys
+    }
+
     private var appDir: java.io.File? = null
     private const val PBKDF2_ITERATIONS = 210_000
 
