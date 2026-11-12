@@ -448,6 +448,9 @@ export class LocalServer {
     this.wss = new WebSocketServer({ noServer: true });
     this.http.on("upgrade", (req, socket, head) => {
       const url = new URL(req.url, this.base);
+      if (url.pathname === "/air-call") {
+        return this.wss.handleUpgrade(req, socket, head, (ws) => this.callSocket(ws, url.searchParams.get("token") ?? ""));
+      }
       if (url.pathname !== "/events") return socket.destroy();
       this.wss.handleUpgrade(req, socket, head, (ws) => this.realtime(ws, url.searchParams.get("token") ?? ""));
     });
@@ -1025,6 +1028,47 @@ export class LocalServer {
       return run;
     }
     return ok({});
+  }
+
+  // ---- calls (the call itself runs in the window, this only carries its signalling) ----
+
+  callSockets = new Set();
+
+  callSocket(ws, token) {
+    if (!token.startsWith(TOKEN_PREFIX) || !this.ensureStarted()) return ws.close();
+    this.callSockets.add(ws);
+    network.callHandler = (from, payload) => {
+      if (payload?.t === "call-ring") {
+        const conv = network.conversations.get(String(payload.conv ?? ""));
+        if (!conv || !conv.members.has(from)) return;
+      }
+      const msg = JSON.stringify({ kind: "signal", from, fromName: network.username(from), payload });
+      for (const s of this.callSockets) if (s.readyState === 1) s.send(msg);
+    };
+    const others = (conv) => {
+      const srv = servers.serverOf(conv.id);
+      const keys = srv && conv.kind === KIND.CHANNEL ? serverMembers(srv) : [...conv.members];
+      return keys.filter((k) => k && k !== network.selfKey);
+    };
+    ws.on("message", (data) => {
+      let msg;
+      try {
+        msg = JSON.parse(data.toString());
+      } catch {
+        return;
+      }
+      if (msg.kind === "start") {
+        const conv = conversationOfChannel(String(msg.channelId ?? ""));
+        const members = conv ? others(conv).map((key) => ({ key, name: network.username(key) })) : [];
+        ws.send(JSON.stringify({ kind: "started", conversation: conv?.id ?? null, members }));
+      } else if (msg.kind === "send" && typeof msg.to === "string" && msg.payload) {
+        network.sendCallMessage(msg.to, msg.payload);
+      } else if (msg.kind === "leave-all") {
+        const conv = network.conversations.get(String(msg.conversation ?? ""));
+        if (conv) for (const k of others(conv)) network.sendCallMessage(k, { t: "call-leave", cid: msg.cid, conv: conv.id });
+      }
+    });
+    ws.on("close", () => this.callSockets.delete(ws));
   }
 
   // ---- realtime ----

@@ -1,5 +1,5 @@
 // AIR Chat for PC (Windows): the window, and the AIR Chat backend running on this computer.
-import { app, BrowserWindow, Menu, safeStorage, session, shell } from "electron";
+import { app, BrowserWindow, desktopCapturer, Menu, safeStorage, session, shell } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Vault, account } from "./air/account.js";
@@ -52,6 +52,16 @@ if (!app.requestSingleInstanceLock()) {
     });
     session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => {
       callback(["media", "notifications", "clipboard-read", "clipboard-sanitized-write", "display-capture", "fullscreen"].includes(permission));
+    });
+
+    // screen sharing in calls: the whole screen
+    session.defaultSession.setDisplayMediaRequestHandler(async (_request, callback) => {
+      try {
+        const sources = await desktopCapturer.getSources({ types: ["screen"] });
+        callback(sources.length ? { video: sources[0] } : {});
+      } catch {
+        callback({});
+      }
     });
 
     win = new BrowserWindow({

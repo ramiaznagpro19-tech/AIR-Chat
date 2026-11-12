@@ -132,3 +132,57 @@ patch("components/app/interface/settings/UserSettings.tsx", [
   [/\{\s*href: "https:\/\/github\.com\/stoatchat",[\s\S]*?\},\s*\{\s*id: "advanced"/, '{\n              id: "advanced"'],
   [/\{\s*href: "https:\/\/ko-fi\.com\/stoatchat",[\s\S]*?\},\s*\{\s*id: "logout"/, '{\n              id: "logout"'],
 ]);
+
+// 8. Verified badge (blue check), like on the phone
+const VERIFIED_SVG =
+  "data:image/svg+xml;utf8," +
+  encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="#1D9BF0" d="m23 12-2.44-2.79.34-3.69-3.61-.82-1.89-3.2L12 2.96 8.6 1.5 6.71 4.69 3.1 5.5l.34 3.7L1 12l2.44 2.79-.34 3.7 3.61.82L8.6 22.5l3.4-1.47 3.4 1.46 1.89-3.19 3.61-.82-.34-3.69z"/><path fill="#fff" d="m10 17-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9z"/></svg>',
+  );
+patch("components/app/interface/channels/text/Message.tsx", [
+  [
+    `          <Switch fallback={<div />}>
+            <Match when={props.message.iconRole}>`,
+    `          <Switch fallback={<div />}>
+            <Match when={((props.message.author?.badges ?? 0) & 2048) !== 0}>
+              <Tooltip content="Compte vérifié" placement="top">
+                <img src="${VERIFIED_SVG}" width={16} height={16} alt="Compte vérifié" />
+              </Tooltip>
+            </Match>
+            <Match when={props.message.iconRole}>`,
+  ],
+]);
+patch("components/ui/components/features/profiles/ProfileBadges.tsx", [
+  [
+    `        <BadgeRow>`,
+    `        <BadgeRow>
+          <Show when={(props.user.badges ?? 0) & 2048}>
+            <img
+              use:floating={{ tooltip: { placement: "top", content: "Compte vérifié" } }}
+              src="${VERIFIED_SVG}"
+            />
+          </Show>`,
+  ],
+]);
+
+// 9. Calls: voice, video (HD to 4K) and screen sharing over the AIR Chat network
+fs.copyFileSync(path.join(here, "files", "airCall.ts"), p("src/airCall.ts"));
+patch("src/index.tsx", [['import "./sentry";', 'import "./sentry";\nimport "./airCall";']]);
+patch("components/rtc/state.tsx", [
+  [
+    "async connect(channel: Channel, auth?: { url: string; token: string }) {",
+    "async connect(channel: Channel, auth?: { url: string; token: string }) {\n    if ((window as any).airCall) {\n      (window as any).airCall.start(channel.id, false);\n      return;\n    }",
+  ],
+]);
+
+// 10. The interface always talks to the AIR Chat backend that serves it (this computer)
+patch("components/common/lib/env.ts", [
+  [
+    /const DEFAULT_HOST = normalizeHost\([\s\S]*?\);/,
+    "const DEFAULT_HOST = typeof location !== \"undefined\" ? location.host : \"127.0.0.1:47821\";",
+  ],
+  [
+    /const DEFAULT_API_URL =\s*getEnv\("VITE_DEV_API_URL", true\) \|\| getEnv\("VITE_API_URL"\) \|\| STOAT_API;/,
+    "const DEFAULT_API_URL = typeof location !== \"undefined\" ? location.origin + \"/api\" : \"http://127.0.0.1:47821/api\";",
+  ],
+]);

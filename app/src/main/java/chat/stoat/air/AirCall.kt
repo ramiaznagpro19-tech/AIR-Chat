@@ -282,6 +282,18 @@ object AirCall {
     private suspend fun answer(peer: String, sdp: String) {
         val link = createLink(peer) ?: return
         link.connection.applyDescription(SessionDescription(SessionDescription.Type.OFFER, sdp), false)
+        // The offer's video line gets its own transceiver: send our camera / screen on that one,
+        // otherwise the person who answers never sees the video of the one who started the call.
+        link.connection.transceivers
+            .firstOrNull { it.mediaType == MediaStreamTrack.MediaType.MEDIA_TYPE_VIDEO && it.mid != null }
+            ?.let { negotiated ->
+                if (negotiated !== link.videoTransceiver) {
+                    link.videoTransceiver = negotiated
+                    negotiated.setDirection(RtpTransceiver.RtpTransceiverDirection.SEND_RECV)
+                    videoTrack?.let { negotiated.sender.setTrack(it, false) }
+                    applyBitrate(link)
+                }
+            }
         val answer = link.connection.createDescription(false)
         link.connection.applyDescription(answer, true)
         withTimeoutOrNull(6_000) { link.gathered.await() }
