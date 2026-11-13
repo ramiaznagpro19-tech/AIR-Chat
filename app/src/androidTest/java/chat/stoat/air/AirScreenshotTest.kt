@@ -38,7 +38,7 @@ import java.io.File
 class AirScreenshotTest {
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
     private val context = instrumentation.targetContext
-    private val dir = File(context.getExternalFilesDir(null), "shots").apply { deleteRecursively(); mkdirs() }
+    private val dir = File(context.filesDir, "shots").apply { deleteRecursively(); mkdirs() }
     private var count = 0
 
     private fun shot(name: String) {

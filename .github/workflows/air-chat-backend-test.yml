@@ -80,7 +80,7 @@ jobs:
             adb shell am instrument -w -r -e class chat.stoat.air.AirBackendTest -e pcbot pcbot${{ github.run_number }} -e user phone${{ github.run_number }} $(adb shell pm list instrumentation | grep -o 'instrumentation:[^ ]*' | grep -i test | head -1 | cut -d: -f2) | tee instrument.txt || true
             adb shell am instrument -w -r -e class chat.stoat.air.AirScreenshotTest -e pcbot pcbot${{ github.run_number }} -e user phone${{ github.run_number }} $(adb shell pm list instrumentation | grep -o 'instrumentation:[^ ]*' | grep -i test | head -1 | cut -d: -f2) | tee screenshots.txt || true
             adb logcat -d | grep -E "AIRSHOT" > airshot.txt || true
-            mkdir -p shots && SHOTS=$(grep -o 'AIRSHOT SUMMARY count=[0-9]* dir=[^ ]*' airshot.txt | sed 's/.*dir=//' | tr -d '\r' | head -1) && [ -n "$SHOTS" ] && adb pull "$SHOTS/." shots/ || true
+            mkdir -p shots && PKG=$(grep -o 'AIRSHOT SUMMARY count=[0-9]* dir=[^ ]*' airshot.txt | sed 's#.*/data/user/0/##; s#.*/data/data/##; s#/files/shots.*##' | tr -d '\r' | head -1) && [ -n "$PKG" ] && adb exec-out run-as "$PKG" tar -cf - files/shots > shots.tar && tar -xf shots.tar && cp files/shots/*.png shots/ || true
             cat airshot.txt | head -80 || true
             cat pcbot.log || true
             cat pcdevice.log || true
