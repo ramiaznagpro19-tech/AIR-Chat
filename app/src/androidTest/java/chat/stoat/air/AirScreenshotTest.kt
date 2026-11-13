@@ -87,7 +87,7 @@ class AirScreenshotTest {
         StoatAPIHost.storage.kvStorage.set("sessionId", hints.id)
         StoatAPI.loginAs(hints.token)
         val png = android.util.Base64.decode(
-            "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAGElEQVR42mP4z8DwHwqRGQwDKcGALj0ARF8j3eGF8yYAAAAASUVORK5CYII=",
+            "iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAACMUlEQVR4Xu2avU7DMBRGnQp1Y6sQU3kEXoWJhYmHY2EqPAk8AANMVVfEwkBRZMmE2L4/n29iV8oZqyr5ju+9jgPtNputO2VWpxy+ZxGozVKB2pyZBzh/uM5d8+vp2Tn383hleFMzASL3iNXtu//ExKRUQJ47xsQEFyiJnqwJVhBwFzJMHwgFUYEIYOn9BNMADroWwqKr8A7ydlJUYIb0QDtJBeZM7xG2k0hg/vRyB5FAy/ACJssv2YKSsI3ECJikL4R2oARaSM8OA99CjZMVaGf56SLonsRyPu9e/3+5fwdgJxLAXiCK/oc/INhqpFsI7h8ifUB+zhmRNLccYkl6D+wQYyYgT2/rkBAA+kebHnaIu8isArUwEMCWHy7CeLJrrZwVi0BtlgrUZqmAc4f1ES5D+cEOP42+3b/AuQ3pkv+lJE4TudwX3502FrD88SlQUQF6yQ/ro8oBSJ+EF5C3ityhH5vd9vLmQ1u0mHQLlYwmW4fh0Ksckm8RfAW0+HxJjXi/2u/63wmoNEbYC3hUe+u+oJ2yDzK2E2zxpSDIvYU29CRmHZJQAjMXwbmsA/FHgOwuFFB1sxXDsSbSi36tMn8dhqWg0zsnqIB2S7GFXT7RELNXmQjJfUUCuQfTpEjSi2YgILyiCfJ76Z7E/rqT7kvy6B5pCw3R3kMOcGVEYKKRANI7p2yhuA4m7YRF9+hmICbcGzApyR0oFYj3KNbEJLe9QJXdFtyFmgLchdphEajNL/fGsjE6T19tAAAAAElFTkSuQmCC",
             android.util.Base64.DEFAULT
         )
         safe("avatar") {

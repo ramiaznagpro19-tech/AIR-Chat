@@ -198,7 +198,7 @@ class ChatRouterViewModel(
             val seenEarlyAccess = kvStorage.getBoolean("spark/earlyAccess/dismissed")
             val seenSwipeToReply = kvStorage.getBoolean("spark/swipeToReply/dismissed")
             if (seenEarlyAccess == null) {
-                showEarlyAccessSpark = true
+                showEarlyAccessSpark = false // AIR Chat: no "early version" notice
                 // we don't show swipe to reply to new users,
                 // as they would expect it to be working already
                 kvStorage.set("spark/swipeToReply/dismissed", true)
