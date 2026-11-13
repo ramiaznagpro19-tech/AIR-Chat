@@ -72,14 +72,16 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           script: |
             adb logcat -c || true
+            adb logcat -G 16M || true
             nohup node desktop/test/pcbot.mjs pcbot${{ github.run_number }} > pcbot.log 2>&1 &
             nohup node desktop/test/pcdevice.mjs phone${{ github.run_number }} 'abcd123!?' > pcdevice.log 2>&1 &
             adb install -r -g app/build/outputs/apk/debug/*.apk
             adb install -r -g app/build/outputs/apk/androidTest/debug/*.apk
             adb shell am instrument -w -r -e class chat.stoat.air.AirBackendTest -e pcbot pcbot${{ github.run_number }} -e user phone${{ github.run_number }} $(adb shell pm list instrumentation | grep -o 'instrumentation:[^ ]*' | grep -i test | head -1 | cut -d: -f2) | tee instrument.txt || true
             adb shell am instrument -w -r -e class chat.stoat.air.AirScreenshotTest -e pcbot pcbot${{ github.run_number }} -e user phone${{ github.run_number }} $(adb shell pm list instrumentation | grep -o 'instrumentation:[^ ]*' | grep -i test | head -1 | cut -d: -f2) | tee screenshots.txt || true
-            mkdir -p shots && SHOTS=$(grep -o 'AIRSHOT SUMMARY count=[0-9]* dir=[^ ]*' screenshots.txt | sed 's/.*dir=//' | tr -d '\r' | head -1) && [ -n "$SHOTS" ] && adb pull "$SHOTS/." shots/ || true
-            grep AIRSHOT screenshots.txt | head -60 || true
+            adb logcat -d | grep -E "AIRSHOT" > airshot.txt || true
+            mkdir -p shots && SHOTS=$(grep -o 'AIRSHOT SUMMARY count=[0-9]* dir=[^ ]*' airshot.txt | sed 's/.*dir=//' | tr -d '\r' | head -1) && [ -n "$SHOTS" ] && adb pull "$SHOTS/." shots/ || true
+            cat airshot.txt | head -80 || true
             cat pcbot.log || true
             cat pcdevice.log || true
             adb logcat -d | grep -E "AIRTEST|AirBackendTest|AndroidRuntime|AirLocalServer|FATAL" | head -400 | tee logcat.txt || true
