@@ -110,6 +110,7 @@ class AirScreenshotTest {
             safe("messages") {
                 val first = JSONObject(sendMessage(channelId, "Bienvenue sur AIR Chat 👋 :air:")).getString("_id")
                 react(channelId, first, "🔥")
+                safe("pin") { chat.stoat.api.routes.channel.pinMessage(channelId, first) }
                 sendMessage(channelId, "**Gras**, *italique*, `code` et un lien https://example.com")
                 sendMessage(channelId, "Une image :", attachments = listOf(uploadToAutumn(png, "photo.png", "attachments", ContentType.Image.PNG)))
             }
@@ -165,6 +166,7 @@ class AirScreenshotTest {
         val screens = listOf(
             "settings" to "parametres",
             "settings/profile" to "profil",
+            "settings/account" to "compte-mot-de-passe",
             "settings/bots" to "mes-bots",
             "settings/appearance" to "apparence",
             "settings/notifications" to "notifications",
