@@ -366,30 +366,20 @@ fun AccountSettingsScreen(
                         )
                     }
 
+                    // AIR Chat: the username is unique and never changes
                     Subcategory(
-                        title = { Text(stringResource(Res.string.settings_account_email)) }
+                        title = { Text("Nom d'utilisateur") }
                     ) {
-                        Row(
-                            horizontalArrangement = Arrangement.Center,
-                            verticalAlignment = Alignment.CenterVertically,
+                        Text(
+                            text = viewModel.accountEmail,
+                            style = MaterialTheme.typography.bodyLarge,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = 16.dp)
                                 .clip(MaterialTheme.shapes.medium)
                                 .background(MaterialTheme.colorScheme.surfaceContainerLow)
-                                .clickable { viewModel.editingEmail = true }
                                 .padding(horizontal = 22.dp, vertical = 18.dp)
-                        ) {
-                            Text(
-                                text = viewModel.accountEmailMasked,
-                                style = MaterialTheme.typography.bodyLarge,
-                                modifier = Modifier.weight(1f)
-                            )
-                            Icon(
-                                painter = painterResource(Res.drawable.ic_edit_24dp),
-                                contentDescription = stringResource(Res.string.settings_account_email_edit_alt)
-                            )
-                        }
+                        )
                     }
 
                     Subcategory(
@@ -419,56 +409,15 @@ fun AccountSettingsScreen(
                         }
                     }
 
-                    Subcategory(
-                        title = { Text(stringResource(Res.string.settings_account_mfa)) }
-                    ) {
-                        AnimatedVisibility(
-                            viewModel.mfaStateLoaded && viewModel.mfaState?.totpMfa == false
-                        ) {
-                            Text(
-                                text = stringResource(Res.string.settings_account_mfa_warning),
-                                color = MaterialTheme.colorScheme.onErrorContainer,
-                                style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier
-                                    .padding(horizontal = 16.dp, vertical = 12.dp)
-                                    .clip(MaterialTheme.shapes.medium)
-                                    .background(MaterialTheme.colorScheme.errorContainer)
-                                    .padding(16.dp)
-                            )
-                        }
-
-                        Row(
-                            horizontalArrangement = Arrangement.Center,
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp)
-                                .clip(MaterialTheme.shapes.medium)
-                                .background(MaterialTheme.colorScheme.surfaceContainerLow)
-                                .clickable {
-                                    navController.navigate("settings/account/mfa")
-                                }
-                                .padding(horizontal = 22.dp, vertical = 18.dp)
-                        ) {
-                            Column(Modifier.weight(1f)) {
-                                Text(
-                                    text = stringResource(Res.string.settings_account_mfa_totp),
-                                    style = MaterialTheme.typography.titleMedium
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = stringResource(Res.string.settings_account_mfa_totp_upsell),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(16.dp))
-                            Switch(
-                                checked = viewModel.mfaState?.totpMfa == true || viewModel.mfaState?.securityKeyMfa == true,
-                                onCheckedChange = null
-                            )
-                        }
-                    }
+                    Text(
+                        text = "Votre compte AIR Chat est votre nom d'utilisateur et votre mot de passe. " +
+                                "Le nom d'utilisateur est unique et ne change jamais ; le mot de passe peut être changé " +
+                                "(au moins 4 lettres, 3 chiffres et 2 caractères spéciaux). Connectez-vous avec les mêmes " +
+                                "sur tous vos appareils : vos serveurs, messages et amis s'y synchronisent.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(16.dp)
+                    )
                 }
             }
         }
