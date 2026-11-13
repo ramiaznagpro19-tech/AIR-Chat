@@ -368,6 +368,20 @@ class Network extends Emitter {
     this.emit("online", prev, next);
   }
 
+  // ---- direct connections: one per device of each person ----
+
+  linkKey(publicKey, dev) {
+    return `${publicKey}/${dev || ""}`;
+  }
+
+  openPeersOf(publicKey) {
+    return [...this.peers.values()].filter((p) => p.publicKey === publicKey && p.isOpen);
+  }
+
+  isOpenTo(publicKey) {
+    return this.openPeersOf(publicKey).length > 0;
+  }
+
   // ---- public API ----
 
   username(key) {
@@ -452,8 +466,7 @@ class Network extends Emitter {
     this.setConversations(new Map(this.conversations).set(c.id, c));
     for (const m of members) {
       this.sendSignal(m, { t: "invite", conv: conversationToJson(c) });
-      const p = this.peers.get(m);
-      if (p?.isOpen) this.sendConversation(p, c);
+      for (const p of this.openPeersOf(m)) this.sendConversation(p, c);
     }
     return c;
   }
@@ -486,7 +499,7 @@ class Network extends Emitter {
     // and to my other devices
     if (this.selfKey) this.sendItems(this.relayEndpoint(this.selfKey), [item]);
     for (const m of this.conversations.get(conversationId)?.members ?? []) {
-      if (m !== this.selfKey && !this.peers.get(m)?.isOpen) this.sendHello(m);
+      if (m !== this.selfKey && !this.isOpenTo(m)) this.sendHello(m);
     }
     return item;
   }
@@ -509,9 +522,9 @@ class Network extends Emitter {
   shareConversation(c, only = null) {
     for (const m of c.members) {
       if (m === this.selfKey || (only && !only.has(m))) continue;
-      const p = this.peers.get(m);
-      if (p?.isOpen) this.sendConversation(p, c);
-      else this.sendSignal(m, { t: "invite", conv: conversationToJson(c) });
+      const open = this.openPeersOf(m);
+      for (const p of open) this.sendConversation(p, c);
+      if (!open.length) this.sendSignal(m, { t: "invite", conv: conversationToJson(c) });
     }
   }
 
@@ -937,13 +950,13 @@ class Network extends Emitter {
   }
 
   sendCallMessage(to, payload) {
-    const p = this.peers.get(to);
-    if (p?.isOpen) this.send(p, { t: "call", call: payload });
-    else this.sendSignal(to, payload);
+    const open = this.openPeersOf(to);
+    for (const p of open) this.send(p, { t: "call", call: payload });
+    if (!open.length) this.sendSignal(to, payload);
   }
 
   isConnected(key) {
-    return this.peers.get(key)?.isOpen === true;
+    return this.isOpenTo(key);
   }
 
   sendSignal(to, payload) {
@@ -971,7 +984,7 @@ class Network extends Emitter {
     if (!this.session) return;
     const targets = new Set([...this.contacts.keys()]);
     for (const c of this.conversations.values()) for (const m of c.members) targets.add(m);
-    for (const t of targets) if (t && t !== this.selfKey && !this.peers.get(t)?.isOpen) this.sendHello(t);
+    for (const t of targets) if (t && t !== this.selfKey && !this.isOpenTo(t)) this.sendHello(t);
     this.relaySyncEveryone();
     this.syncMyDevices(false);
   }
@@ -1059,7 +1072,7 @@ class Network extends Emitter {
       }
     }
     for (const [key, ids] of byMember) {
-      if (this.peers.get(key)?.isOpen) continue;
+      if (this.isOpenTo(key)) continue;
       const relay = this.relayEndpoint(key);
       if (now - relay.syncedAt < RELAY_SYNC_INTERVAL_MS) continue;
       relay.syncedAt = now;
@@ -1099,11 +1112,13 @@ class Network extends Emitter {
         await this.rememberSender(from, json.from_name || "");
         switch (json.t) {
           case "hello":
-            return this.onHello(from);
+            return this.onHello(from, json.dev);
           case "offer":
-            return this.onOffer(from, json.sid, json.sdp);
+            // an offer made for another device of this account is not for us
+            if (json.to_dev && json.to_dev !== this.deviceId) return;
+            return this.onOffer(from, json.dev, json.sid, json.sdp);
           case "answer":
-            return this.onAnswer(from, json.sid, json.sdp);
+            return this.onAnswer(from, json.dev, json.sid, json.sdp);
           case "invite":
             if (json.conv) this.mergeConversation(from, json.conv);
             return;
@@ -1131,25 +1146,28 @@ class Network extends Emitter {
     this.setContacts(new Map(this.contacts).set(from, { publicKey: from, username: account.normalize(claimedName) }));
   }
 
-  async onHello(from) {
+  async onHello(from, dev = "") {
     if (process.env.AIR_NO_P2P) {
       // tests: behave like a network where direct connections never work
       this.relaySyncEveryone();
       return;
     }
-    const existing = this.peers.get(from);
+    const existing = this.peers.get(this.linkKey(from, dev));
     if (existing && (existing.isOpen || Date.now() - existing.createdAt < 20_000)) return;
     if (!this.selfKey) return;
-    if (this.selfKey < from) await this.connect(from);
+    if (this.selfKey < from) await this.connect(from, dev);
     else this.sendHello(from);
   }
 
   // ---- direct connections (WebRTC data channels) ----
 
-  newPeer(publicKey, sessionId) {
+  newPeer(publicKey, sessionId, dev = "") {
+    const link = this.linkKey(publicKey, dev);
     const connection = new RTCPeerConnection({ iceServers: ICE_SERVERS.map((urls) => ({ urls })) });
     const peer = {
       publicKey,
+      link,
+      dev: dev || "",
       sessionId,
       connection,
       createdAt: Date.now(),
@@ -1170,26 +1188,26 @@ class Network extends Emitter {
     };
     connection.ondatachannel = (e) => this.attach(peer, e.channel);
     connection.onconnectionstatechange = () => {
-      if (["failed", "closed"].includes(connection.connectionState)) this.closePeer(publicKey, peer);
+      if (["failed", "closed"].includes(connection.connectionState)) this.closePeer(link, peer);
     };
-    this.peers.set(publicKey, peer);
+    this.peers.set(link, peer);
     return peer;
   }
 
-  async connect(to) {
-    this.closePeer(to);
+  async connect(to, dev = "") {
+    this.closePeer(this.linkKey(to, dev));
     const sessionId = hex(randomBytes(8));
-    const peer = this.newPeer(to, sessionId);
+    const peer = this.newPeer(to, sessionId, dev);
     this.attach(peer, peer.connection.createDataChannel("air-chat", { ordered: true }));
     const offer = await peer.connection.createOffer();
     await peer.connection.setLocalDescription(offer);
     await Promise.race([peer.gathered, sleep(6_000)]);
-    this.sendSignal(to, { t: "offer", sid: sessionId, sdp: peer.connection.localDescription?.sdp ?? offer.sdp });
+    this.sendSignal(to, { t: "offer", sid: sessionId, sdp: peer.connection.localDescription?.sdp ?? offer.sdp, ...(dev ? { to_dev: dev } : {}) });
   }
 
-  async onOffer(from, sessionId, sdp) {
-    this.closePeer(from);
-    const peer = this.newPeer(from, sessionId);
+  async onOffer(from, dev, sessionId, sdp) {
+    this.closePeer(this.linkKey(from, dev));
+    const peer = this.newPeer(from, sessionId, dev);
     await peer.connection.setRemoteDescription({ type: "offer", sdp });
     const answer = await peer.connection.createAnswer();
     await peer.connection.setLocalDescription(answer);
@@ -1197,16 +1215,20 @@ class Network extends Emitter {
     this.sendSignal(from, { t: "answer", sid: sessionId, sdp: peer.connection.localDescription?.sdp ?? answer.sdp });
   }
 
-  async onAnswer(from, sessionId, sdp) {
-    const peer = this.peers.get(from);
+  async onAnswer(from, dev, sessionId, sdp) {
+    // older apps do not say which device answers: match the session
+    const peer =
+      this.peers.get(this.linkKey(from, dev)) ??
+      [...this.peers.values()].find((p) => p.publicKey === from && p.sessionId === sessionId);
     if (!peer || peer.sessionId !== sessionId) return;
+    if (peer.connection.signalingState !== "have-local-offer") return;
     await peer.connection.setRemoteDescription({ type: "answer", sdp });
   }
 
   attach(peer, channel) {
     peer.channel = channel;
     channel.onopen = () => this.onPeerOpen(peer);
-    channel.onclose = () => this.closePeer(peer.publicKey, peer);
+    channel.onclose = () => this.closePeer(peer.link, peer);
     channel.onmessage = (e) => {
       try {
         const text = typeof e.data === "string" ? e.data : Buffer.from(e.data).toString("utf8");
@@ -1345,7 +1367,7 @@ class Network extends Emitter {
         }
       : incoming;
     if (!sameConversation(existing, merged)) this.setConversations(new Map(this.conversations).set(merged.id, merged));
-    for (const m of incoming.members) if (m !== this.selfKey && !this.peers.get(m)?.isOpen) this.sendHello(m);
+    for (const m of incoming.members) if (m !== this.selfKey && !this.isOpenTo(m)) this.sendHello(m);
     if (incoming.kind === KIND.SERVER) {
       this.refreshInviteSubscriptions();
       servers.ensureJoinItem(incoming.id);
@@ -1359,12 +1381,12 @@ class Network extends Emitter {
   broadcastItems(conversationId, list, except) {
     const c = this.conversations.get(conversationId);
     if (!c) return;
-    const targets = official.isOpen(conversationId) ? [...this.peers.keys()] : [...c.members];
+    const targets = official.isOpen(conversationId) ? [...new Set([...this.peers.values()].map((p) => p.publicKey))] : [...c.members];
     for (const t of targets) {
       if (t === this.selfKey || t === except || servers.isBlocked(conversationId, t)) continue;
-      const p = this.peers.get(t);
-      if (p?.isOpen) this.sendItems(p, list);
-      else if (!official.isOpen(conversationId)) this.sendItems(this.relayEndpoint(t), list);
+      const open = this.openPeersOf(t);
+      for (const p of open) this.sendItems(p, list);
+      if (!open.length && !official.isOpen(conversationId)) this.sendItems(this.relayEndpoint(t), list);
     }
   }
 
@@ -1395,9 +1417,9 @@ class Network extends Emitter {
     try {
       peer.connection.close();
     } catch {}
-    if (this.online.has(key)) {
+    if (this.online.has(peer.publicKey) && !this.isOpenTo(peer.publicKey)) {
       const next = new Set(this.online);
-      next.delete(key);
+      next.delete(peer.publicKey);
       this.setOnline(next);
     }
   }

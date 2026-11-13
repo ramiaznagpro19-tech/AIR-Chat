@@ -414,7 +414,7 @@ object AirNetwork {
         }
         members.forEach { member ->
             sendSignal(member, JSONObject().put("t", "invite").put("conv", conversationJson(conversation)))
-            peers[member]?.let { if (it.isOpen) sendConversation(it, conversation) }
+            openPeersOf(member).forEach { sendConversation(it, conversation) }
         }
         return conversation
     }
@@ -452,7 +452,7 @@ object AirNetwork {
         // and to my other devices
         selfKey?.let { sendItems(relayEndpoint(it), listOf(item)) }
         _conversations.value[conversationId]?.members?.forEach { member ->
-            if (member != selfKey && peers[member]?.isOpen != true) sendHello(member)
+            if (member != selfKey && !isOpenTo(member)) sendHello(member)
         }
         return item
     }
@@ -474,9 +474,9 @@ object AirNetwork {
     /** Sends a conversation to all its members (open peers now, the others by invitation). */
     private fun shareConversation(conversation: AirConversation, only: Set<String>? = null) {
         conversation.members.filter { it != selfKey && (only == null || it in only) }.forEach { member ->
-            val peer = peers[member]
-            if (peer?.isOpen == true) sendConversation(peer, conversation)
-            else sendSignal(member, JSONObject().put("t", "invite").put("conv", conversationJson(conversation)))
+            val open = openPeersOf(member)
+            open.forEach { sendConversation(it, conversation) }
+            if (open.isEmpty()) sendSignal(member, JSONObject().put("t", "invite").put("conv", conversationJson(conversation)))
         }
     }
 
@@ -946,12 +946,12 @@ object AirNetwork {
 
     /** Sends a call message to a peer, directly if connected, otherwise through signalling. */
     internal fun sendCallMessage(to: String, payload: JSONObject) {
-        val peer = peers[to]
-        if (peer?.isOpen == true) send(peer, JSONObject().put("t", "call").put("call", payload))
-        else sendSignal(to, payload)
+        val open = openPeersOf(to)
+        open.forEach { send(it, JSONObject().put("t", "call").put("call", payload)) }
+        if (open.isEmpty()) sendSignal(to, payload)
     }
 
-    fun isConnected(publicKey: String) = peers[publicKey]?.isOpen == true
+    fun isConnected(publicKey: String) = isOpenTo(publicKey)
 
     internal fun sendSignal(to: String, payload: JSONObject) {
         // bots have no device of their own: their host already has everything
@@ -986,7 +986,7 @@ object AirNetwork {
 
     private fun helloEveryone() {
         val targets = _contacts.value.keys + _conversations.value.values.flatMap { it.members }
-        targets.filter { it != selfKey && peers[it]?.isOpen != true }.toSet().forEach { sendHello(it) }
+        targets.filter { it != selfKey && !isOpenTo(it) }.toSet().forEach { sendHello(it) }
         relaySyncEveryone()
         syncMyDevices(false)
     }
@@ -1026,9 +1026,13 @@ object AirNetwork {
             try {
                 rememberSender(from, json.optString("from_name"))
                 when (json.optString("t")) {
-                    "hello" -> onHello(from)
-                    "offer" -> onOffer(from, json.getString("sid"), json.getString("sdp"))
-                    "answer" -> onAnswer(from, json.getString("sid"), json.getString("sdp"))
+                    "hello" -> onHello(from, json.optString("dev"))
+                    "offer" -> {
+                        // an offer made for another device of this account is not for us
+                        val target = json.optString("to_dev")
+                        if (target.isEmpty() || target == deviceId) onOffer(from, json.optString("dev"), json.getString("sid"), json.getString("sdp"))
+                    }
+                    "answer" -> onAnswer(from, json.optString("dev"), json.getString("sid"), json.getString("sdp"))
                     "invite" -> json.optJSONObject("conv")?.let { mergeConversation(from, it) }
                     "call-ring", "call-join", "call-roster", "call-offer", "call-answer",
                     "call-leave", "call-busy" -> AirCall.onSignal(from, json)
@@ -1054,10 +1058,10 @@ object AirNetwork {
         }
     }
 
-    private suspend fun onHello(from: String) {
-        val existing = peers[from]
+    private suspend fun onHello(from: String, dev: String) {
+        val existing = peers[linkKey(from, dev)]
         if (existing != null && (existing.isOpen || System.currentTimeMillis() - existing.createdAt < 20_000)) return
-        if ((selfKey ?: return) < from) connect(from) else sendHello(from)
+        if ((selfKey ?: return) < from) connect(from, dev) else sendHello(from)
     }
 
     // ------------------------------------------------------------------------------------
@@ -1071,7 +1075,13 @@ object AirNetwork {
         fun deliver(json: JSONObject)
     }
 
-    private class Peer(override val publicKey: String, val sessionId: String, val connection: PeerConnection) : Endpoint {
+    private class Peer(
+        override val publicKey: String,
+        val sessionId: String,
+        val connection: PeerConnection,
+        val dev: String = "",
+    ) : Endpoint {
+        val link: String get() = linkKey(publicKey, dev)
         val createdAt = System.currentTimeMillis()
         @Volatile
         var channel: DataChannel? = null
@@ -1118,11 +1128,16 @@ object AirNetwork {
         }
     }
 
+    /** One direct connection per device of each person (phone and PC of the same account...). */
+    private fun linkKey(publicKey: String, dev: String?) = "$publicKey/${dev ?: ""}"
+    private fun openPeersOf(publicKey: String): List<Peer> = peers.values.filter { it.publicKey == publicKey && it.isOpen }
+    private fun isOpenTo(publicKey: String) = peers.values.any { it.publicKey == publicKey && it.isOpen }
+
     private val relayEndpoints = ConcurrentHashMap<String, RelayEndpoint>()
     private fun relayEndpoint(key: String) = relayEndpoints.getOrPut(key) { RelayEndpoint(key) }
 
     /** Endpoint to reach [key] now: the direct connection when open, the relays otherwise. */
-    private fun endpointFor(key: String): Endpoint = peers[key]?.takeIf { it.isOpen } ?: relayEndpoint(key)
+    private fun endpointFor(key: String): Endpoint = openPeersOf(key).firstOrNull() ?: relayEndpoint(key)
 
     /** Sync conversations through the relays with everyone we cannot reach directly. */
     private fun relaySyncEveryone() {
@@ -1134,7 +1149,7 @@ object AirNetwork {
             c.members.filter { it != me }.forEach { byMember.getOrPut(it) { mutableListOf() }.add(c.id) }
         }
         byMember.forEach { (key, conversations) ->
-            if (peers[key]?.isOpen == true) return@forEach
+            if (isOpenTo(key)) return@forEach
             val relay = relayEndpoint(key)
             if (now - relay.syncedAt < RELAY_SYNC_INTERVAL_MS) return@forEach
             relay.syncedAt = now
@@ -1169,10 +1184,10 @@ object AirNetwork {
         sdpSemantics = PeerConnection.SdpSemantics.UNIFIED_PLAN
     }
 
-    private suspend fun connect(to: String) {
-        closePeer(to)
+    private suspend fun connect(to: String, dev: String = "") {
+        closePeer(linkKey(to, dev))
         val sessionId = AirCrypto.hex(AirCrypto.randomBytes(8))
-        val peer = newPeer(to, sessionId) ?: return
+        val peer = newPeer(to, sessionId, dev) ?: return
         attach(peer, peer.connection.createDataChannel("air-chat", DataChannel.Init().apply { ordered = true }))
         val offer = peer.connection.createDescription(true)
         peer.connection.applyDescription(offer, local = true)
@@ -1181,12 +1196,13 @@ object AirNetwork {
             to,
             JSONObject().put("t", "offer").put("sid", sessionId)
                 .put("sdp", peer.connection.localDescription?.description ?: offer.description)
+                .apply { if (dev.isNotEmpty()) put("to_dev", dev) }
         )
     }
 
-    private suspend fun onOffer(from: String, sessionId: String, sdp: String) {
-        closePeer(from)
-        val peer = newPeer(from, sessionId) ?: return
+    private suspend fun onOffer(from: String, dev: String, sessionId: String, sdp: String) {
+        closePeer(linkKey(from, dev))
+        val peer = newPeer(from, sessionId, dev) ?: return
         peer.connection.applyDescription(SessionDescription(SessionDescription.Type.OFFER, sdp), local = false)
         val answer = peer.connection.createDescription(false)
         peer.connection.applyDescription(answer, local = true)
@@ -1198,13 +1214,15 @@ object AirNetwork {
         )
     }
 
-    private suspend fun onAnswer(from: String, sessionId: String, sdp: String) {
-        val peer = peers[from] ?: return
-        if (peer.sessionId != sessionId) return
+    private suspend fun onAnswer(from: String, dev: String, sessionId: String, sdp: String) {
+        // older apps do not say which device answers: match the session
+        val peer = peers[linkKey(from, dev)]?.takeIf { it.sessionId == sessionId }
+            ?: peers.values.firstOrNull { it.publicKey == from && it.sessionId == sessionId } ?: return
+        if (peer.connection.signalingState() != PeerConnection.SignalingState.HAVE_LOCAL_OFFER) return
         peer.connection.applyDescription(SessionDescription(SessionDescription.Type.ANSWER, sdp), local = false)
     }
 
-    private fun newPeer(publicKey: String, sessionId: String): Peer? {
+    private fun newPeer(publicKey: String, sessionId: String, dev: String = ""): Peer? {
         var created: Peer? = null
         val observer = object : PeerConnection.Observer {
             override fun onIceCandidate(candidate: IceCandidate) {}
@@ -1217,7 +1235,7 @@ object AirNetwork {
                 if (newState == PeerConnection.PeerConnectionState.FAILED ||
                     newState == PeerConnection.PeerConnectionState.CLOSED
                 ) {
-                    created?.let { peer -> scope.launch { closePeer(peer.publicKey, peer) } }
+                    created?.let { peer -> scope.launch { closePeer(peer.link, peer) } }
                 }
             }
 
@@ -1234,9 +1252,9 @@ object AirNetwork {
             override fun onRenegotiationNeeded() {}
         }
         val connection = peerConnectionFactory().createPeerConnection(rtcConfiguration(), observer) ?: return null
-        val peer = Peer(publicKey, sessionId, connection)
+        val peer = Peer(publicKey, sessionId, connection, dev)
         created = peer
-        peers[publicKey] = peer
+        peers[peer.link] = peer
         return peer
     }
 
@@ -1247,7 +1265,7 @@ object AirNetwork {
             override fun onStateChange() {
                 when (channel.state()) {
                     DataChannel.State.OPEN -> onPeerOpen(peer)
-                    DataChannel.State.CLOSED -> scope.launch { closePeer(peer.publicKey, peer) }
+                    DataChannel.State.CLOSED -> scope.launch { closePeer(peer.link, peer) }
                     else -> Unit
                 }
             }
@@ -1376,7 +1394,7 @@ object AirNetwork {
             _conversations.value = _conversations.value + (merged.id to merged)
             save()
         }
-        incoming.members.filter { it != selfKey && peers[it]?.isOpen != true }.forEach { sendHello(it) }
+        incoming.members.filter { it != selfKey && !isOpenTo(it) }.forEach { sendHello(it) }
         if (incoming.kind == AirConversation.KIND_SERVER) {
             refreshInviteSubscriptions()
             AirServers.ensureJoinItem(incoming.id)
@@ -1389,15 +1407,16 @@ object AirNetwork {
 
     private fun broadcastItems(conversationId: String, list: List<AirItem>, except: String?) {
         val conversation = _conversations.value[conversationId] ?: return
-        val targets = if (AirOfficial.isOpen(conversationId)) peers.keys else conversation.members
+        val targets = if (AirOfficial.isOpen(conversationId)) peers.values.map { it.publicKey }.toSet() else conversation.members
         targets
             .filter { it != selfKey && it != except && !AirServers.isBlocked(conversationId, it) }
-            .mapNotNull { key ->
+            .flatMap { key ->
+                val open = openPeersOf(key)
                 when {
-                    peers[key]?.isOpen == true -> peers[key]
+                    open.isNotEmpty() -> open
                     // the official server is open to everyone: only connected peers get it live
-                    AirOfficial.isOpen(conversationId) -> null
-                    else -> relayEndpoint(key)
+                    AirOfficial.isOpen(conversationId) -> emptyList()
+                    else -> listOf(relayEndpoint(key))
                 }
             }
             .forEach { sendItems(it, list) }
@@ -1411,14 +1430,14 @@ object AirNetwork {
 
     private fun send(peer: Endpoint, json: JSONObject) = peer.deliver(json)
 
-    private fun closePeer(publicKey: String, only: Peer? = null) {
-        val peer = peers[publicKey] ?: return
+    private fun closePeer(link: String, only: Peer? = null) {
+        val peer = peers[link] ?: return
         if (only != null && peer !== only) return
-        peers.remove(publicKey)
+        peers.remove(link)
         runCatching { peer.channel?.unregisterObserver() }
         runCatching { peer.channel?.close() }
         runCatching { peer.connection.close() }
-        _online.value = _online.value - publicKey
+        if (!isOpenTo(peer.publicKey)) _online.value = _online.value - peer.publicKey
     }
 
     // ------------------------------------------------------------------------------------
