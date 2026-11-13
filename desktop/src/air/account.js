@@ -164,6 +164,34 @@ class Account extends Emitter {
     return { session: this.session };
   }
 
+  /** Reserves a username for a bot account hosted by [owner]. */
+  async registerBot(username, key, owner) {
+    const name = this.normalize(username);
+    if (!this.isUsernameValid(name)) return { error: "UsernameInvalid" };
+    let existing;
+    try {
+      existing = await this.ownerOf(name);
+    } catch {
+      return { error: "NetworkError" };
+    }
+    if (relays.connectedCount === 0) return { error: "NetworkError" };
+    if (existing) return { error: "UsernameTaken" };
+    const claim = createEvent(
+      key,
+      USERNAME_KIND,
+      [
+        ["d", this.usernameTag(name)],
+        ["t", this.USERNAME_TOPIC],
+      ],
+      JSON.stringify({ username: name, app: "AIR Chat", bot: true, owner }),
+    );
+    if (!(await relays.publish(claim))) return { error: "NetworkError" };
+    const pub = hex(publicKey(key));
+    const confirmed = await this.ownerOf(name);
+    if (confirmed && confirmed !== pub) return { error: "UsernameTaken" };
+    return { session: { username: name, privateKey: key, publicKey: pub } };
+  }
+
   async login(username, password) {
     const name = this.normalize(username);
     if (!this.isUsernameValid(name)) return { error: "UsernameInvalid" };

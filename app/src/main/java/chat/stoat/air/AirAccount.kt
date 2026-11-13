@@ -203,6 +203,30 @@ object AirAccount {
         Result.Success(session)
     }
 
+    /** Reserves a username for a bot account hosted by [owner]. */
+    suspend fun registerBot(username: String, key: ByteArray, owner: String): Result = withContext(Dispatchers.Default) {
+        val name = normalize(username)
+        if (!isUsernameValid(name)) return@withContext Result.UsernameInvalid
+        val existing = try {
+            ownerOf(name)
+        } catch (e: Exception) {
+            return@withContext Result.NetworkError
+        }
+        if (NostrRelayPool.connectedCount.value == 0) return@withContext Result.NetworkError
+        if (existing != null) return@withContext Result.UsernameTaken
+        val claim = NostrEvent.create(
+            key,
+            USERNAME_KIND,
+            listOf(listOf("d", usernameTag(name)), listOf("t", USERNAME_TOPIC)),
+            JSONObject().put("username", name).put("app", "AIR Chat").put("bot", true).put("owner", owner).toString()
+        )
+        if (!NostrRelayPool.publish(claim)) return@withContext Result.NetworkError
+        val session = Session(name, key)
+        val confirmed = ownerOf(name)
+        if (confirmed != null && confirmed != session.publicKey) return@withContext Result.UsernameTaken
+        Result.Success(session)
+    }
+
     suspend fun login(username: String, password: String): Result = withContext(Dispatchers.Default) {
         val name = normalize(username)
         if (!isUsernameValid(name)) return@withContext Result.UsernameInvalid

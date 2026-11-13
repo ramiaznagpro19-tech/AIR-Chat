@@ -139,6 +139,9 @@ object AirNetwork {
     private const val TAG = "AirNetwork"
     const val SIGNAL_KIND = 21420
     private const val HELLO_INTERVAL_MS = 60_000L
+    private const val RELAY_CHUNK = 24_000
+    private const val RELAY_SYNC_INTERVAL_MS = 5 * 60_000L
+    private const val RELAY_MAX_FILE = 3 * 1024 * 1024
 
     private lateinit var appContext: Context
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -157,6 +160,22 @@ object AirNetwork {
 
     private val _items = MutableStateFlow<Map<String, AirItem>>(emptyMap())
     val items: StateFlow<Map<String, AirItem>> = _items.asStateFlow()
+
+    /** Items as they arrive (used by the bots hosted on this device). */
+    val newItems = kotlinx.coroutines.flow.MutableSharedFlow<List<AirItem>>(extraBufferCapacity = 256)
+
+    /** Bot accounts (public key -> owner public key), from their signed directory entry. */
+    private val _botOwners = MutableStateFlow<Map<String, String>>(emptyMap())
+    val botOwners: StateFlow<Map<String, String>> = _botOwners.asStateFlow()
+
+    fun rememberBot(key: String, owner: String, name: String? = null) {
+        if (_botOwners.value[key] == owner && (name == null || _names.value[key] == name)) return
+        synchronized(lock) {
+            _botOwners.value = _botOwners.value + (key to owner)
+            if (name != null) _names.value = _names.value + (key to name)
+            save()
+        }
+    }
 
     private val _online = MutableStateFlow<Set<String>>(emptySet())
     val online: StateFlow<Set<String>> = _online.asStateFlow()
@@ -199,6 +218,7 @@ object AirNetwork {
             AirOfficial.ensure()
         }
         AirNetworkService.start(appContext)
+        AirBots.start(appContext, newSession.publicKey)
         helloJob = scope.launch {
             while (isActive) {
                 helloEveryone()
@@ -208,6 +228,7 @@ object AirNetwork {
     }
 
     fun stop() {
+        AirBots.stop()
         helloJob?.cancel()
         inviteSubscriptions.values.forEach { NostrRelayPool.unsubscribe(it) }
         inviteSubscriptions.clear()
@@ -224,6 +245,8 @@ object AirNetwork {
         _readUpTo.value = emptyMap()
         _acks.value = emptyMap()
         _names.value = emptyMap()
+        _botOwners.value = emptyMap()
+        relayEndpoints.clear()
         _profiles.value = emptyMap()
         fileMetas.clear()
         settings.clear()
@@ -259,9 +282,10 @@ object AirNetwork {
                 )
                 val found = mutableMapOf<String, String>()
                 events.groupBy { it.pubkey }.forEach { (key, list) ->
-                    val name = list.minByOrNull { it.createdAt }
-                        ?.let { runCatching { JSONObject(it.content).optString("username") }.getOrNull() }
-                        ?.takeIf { AirAccount.isUsernameValid(it) } ?: return@forEach
+                    val claim = list.minByOrNull { it.createdAt }
+                        ?.let { runCatching { JSONObject(it.content) }.getOrNull() } ?: return@forEach
+                    val name = claim.optString("username").takeIf { AirAccount.isUsernameValid(it) } ?: return@forEach
+                    if (claim.optBoolean("bot") && claim.optString("owner").length == 64) rememberBot(key, claim.optString("owner"))
                     // the name only belongs to this account if its reservation is the oldest
                     if (AirAccount.ownerOf(name) == key) found[key] = AirAccount.normalize(name)
                 }
@@ -344,8 +368,9 @@ object AirNetwork {
         title: String = "",
         tags: List<String> = emptyList(),
         parent: String? = null,
+        author: AirAccount.Session? = null,
     ): AirItem? {
-        val current = session ?: return null
+        val current = author ?: session ?: return null
         val unsigned = AirItem(
             id = chat.stoat.api.internals.ULID.makeNext(),
             conversation = conversationId,
@@ -615,21 +640,50 @@ object AirNetwork {
         updatedAt = json.optLong("updatedAt"),
     )
 
-    private fun sendProfile(peer: Peer) {
-        val own = selfKey?.let { _profiles.value[it] } ?: return
-        send(peer, JSONObject().put("t", "profile").put("profile", profileJson(own)))
+    private fun sendProfile(peer: Endpoint) {
+        selfKey?.let { _profiles.value[it] }?.let { own ->
+            send(peer, JSONObject().put("t", "profile").put("profile", profileJson(own)))
+        }
+        // profiles of the bots this device hosts
+        _botOwners.value.filter { it.value == selfKey }.keys.forEach { key ->
+            _profiles.value[key]?.let { send(peer, JSONObject().put("t", "profile").put("of", key).put("profile", profileJson(it))) }
+        }
     }
 
-    private fun onProfile(peer: Peer, json: JSONObject) {
-        val incoming = profileFromJson(json)
-        json.optJSONObject("avatarMeta")?.let { meta -> runCatching { rememberFileMeta(FileMeta.fromJson(meta)) } }
-        val current = _profiles.value[peer.publicKey]
-        if (current != null && current.updatedAt >= incoming.updatedAt) return
+    /** Profile of a bot hosted here: shown to everyone we are connected to. */
+    fun updateBotProfile(key: String, displayName: String?, avatar: String?) {
+        if (_botOwners.value[key] != selfKey) return
+        val profile = Profile(displayName?.trim()?.take(32)?.ifBlank { null }, avatar?.ifBlank { null }, System.currentTimeMillis())
         synchronized(lock) {
-            _profiles.value = _profiles.value + (peer.publicKey to incoming)
+            _profiles.value = _profiles.value + (key to profile)
             save()
         }
-        incoming.avatar?.let { id -> if (!hasFile(id)) requestFile(id) }
+        peers.values.filter { it.isOpen }.forEach {
+            send(it, JSONObject().put("t", "profile").put("of", key).put("profile", profileJson(profile)))
+        }
+    }
+
+    private fun onProfile(peer: Endpoint, json: JSONObject, of: String? = null) {
+        // a bot's profile comes from the device of its owner
+        val target = when {
+            of == null -> peer.publicKey
+            _botOwners.value[of] == peer.publicKey -> of
+            else -> return
+        }
+        val incoming = profileFromJson(json)
+        json.optJSONObject("avatarMeta")?.let { meta -> runCatching { rememberFileMeta(FileMeta.fromJson(meta)) } }
+        val current = _profiles.value[target]
+        if (current != null && current.updatedAt >= incoming.updatedAt) return
+        synchronized(lock) {
+            _profiles.value = _profiles.value + (target to incoming)
+            save()
+        }
+        incoming.avatar?.let { id ->
+            if (!hasFile(id)) {
+                requestFile(id)
+                if (peer !is Peer) send(peer, JSONObject().put("t", "fget").put("id", id))
+            }
+        }
     }
 
     // ---- Files (attachments and avatars), sent directly between phones ----
@@ -735,16 +789,21 @@ object AirNetwork {
         }
     }
 
-    private fun onFileRequest(peer: Peer, id: String) {
+    private fun onFileRequest(peer: Endpoint, id: String) {
         val file = fileOf(id)
         if (!file.exists()) return
         val meta = fileMetas[id]
         scope.launch {
             val bytes = file.readBytes()
             val total = (bytes.size + CHUNK_SIZE - 1) / CHUNK_SIZE
+            if (peer !is Peer && bytes.size > RELAY_MAX_FILE) return@launch
             for (index in 0 until maxOf(total, 1)) {
-                val channel = peer.channel ?: return@launch
-                while (channel.bufferedAmount() > 2L * 1024 * 1024) delay(50)
+                if (peer is Peer) {
+                    val channel = peer.channel ?: return@launch
+                    while (channel.bufferedAmount() > 2L * 1024 * 1024) delay(50)
+                } else {
+                    delay(350)
+                }
                 val part = bytes.copyOfRange(index * CHUNK_SIZE, minOf(bytes.size, (index + 1) * CHUNK_SIZE))
                 send(peer, JSONObject().apply {
                     put("t", "fpart"); put("id", id); put("i", index); put("n", maxOf(total, 1))
@@ -830,6 +889,8 @@ object AirNetwork {
     fun isConnected(publicKey: String) = peers[publicKey]?.isOpen == true
 
     internal fun sendSignal(to: String, payload: JSONObject) {
+        // bots have no device of their own: their host already has everything
+        if (_botOwners.value.containsKey(to)) return
         val current = session ?: return
         scope.launch {
             try {
@@ -860,6 +921,7 @@ object AirNetwork {
     private fun helloEveryone() {
         val targets = _contacts.value.keys + _conversations.value.values.flatMap { it.members }
         targets.filter { it != selfKey && peers[it]?.isOpen != true }.toSet().forEach { sendHello(it) }
+        relaySyncEveryone()
     }
 
     private val handledSignals = ConcurrentHashMap.newKeySet<String>()
@@ -891,6 +953,9 @@ object AirNetwork {
                     "call-ring", "call-join", "call-roster", "call-offer", "call-answer",
                     "call-leave", "call-busy" -> AirCall.onSignal(from, json)
                     "join" -> onJoinRequest(from, json.optString("server"))
+                    "relay" -> json.optJSONObject("d")?.let { data ->
+                        if (data.optString("t") != "call") onData(relayEndpoint(from), data)
+                    }
                 }
             } catch (e: Exception) {
                 Log.w(TAG, "Signal handling failed", e)
@@ -919,13 +984,87 @@ object AirNetwork {
     // Direct connections (WebRTC data channels)
     // ------------------------------------------------------------------------------------
 
-    private class Peer(val publicKey: String, val sessionId: String, val connection: PeerConnection) {
+    /** Someone we exchange data with: directly (WebRTC) or through the relays when that fails. */
+    private interface Endpoint {
+        val publicKey: String
+        val syncedConversations: MutableSet<String>
+        fun deliver(json: JSONObject)
+    }
+
+    private class Peer(override val publicKey: String, val sessionId: String, val connection: PeerConnection) : Endpoint {
         val createdAt = System.currentTimeMillis()
         @Volatile
         var channel: DataChannel? = null
         val gathered = CompletableDeferred<Unit>()
-        val syncedConversations: MutableSet<String> = ConcurrentHashMap.newKeySet()
+        override val syncedConversations: MutableSet<String> = ConcurrentHashMap.newKeySet()
         val isOpen: Boolean get() = channel?.state() == DataChannel.State.OPEN
+
+        override fun deliver(json: JSONObject) {
+            val channel = channel ?: return
+            if (channel.state() != DataChannel.State.OPEN) return
+            channel.send(DataChannel.Buffer(ByteBuffer.wrap(json.toString().toByteArray(Charsets.UTF_8)), false))
+        }
+    }
+
+    /**
+     * When no direct connection is possible (mobile networks, strict routers), the same data goes
+     * through the relays, end-to-end encrypted like the signalling.
+     */
+    private class RelayEndpoint(override val publicKey: String) : Endpoint {
+        override val syncedConversations: MutableSet<String> = ConcurrentHashMap.newKeySet()
+        var syncedAt = 0L
+
+        override fun deliver(json: JSONObject) {
+            if (json.optString("t") == "items") {
+                // relays limit the size of events: split big batches
+                val items = json.optJSONArray("items") ?: return
+                var batch = JSONArray()
+                var size = 0
+                for (i in 0 until items.length()) {
+                    val item = items.getJSONObject(i)
+                    val length = item.toString().length
+                    if (batch.length() > 0 && size + length > RELAY_CHUNK) {
+                        sendSignal(publicKey, JSONObject().put("t", "relay").put("d", JSONObject().put("t", "items").put("items", batch)))
+                        batch = JSONArray(); size = 0
+                    }
+                    batch.put(item); size += length
+                }
+                if (batch.length() > 0) {
+                    sendSignal(publicKey, JSONObject().put("t", "relay").put("d", JSONObject().put("t", "items").put("items", batch)))
+                }
+                return
+            }
+            sendSignal(publicKey, JSONObject().put("t", "relay").put("d", json))
+        }
+    }
+
+    private val relayEndpoints = ConcurrentHashMap<String, RelayEndpoint>()
+    private fun relayEndpoint(key: String) = relayEndpoints.getOrPut(key) { RelayEndpoint(key) }
+
+    /** Endpoint to reach [key] now: the direct connection when open, the relays otherwise. */
+    private fun endpointFor(key: String): Endpoint = peers[key]?.takeIf { it.isOpen } ?: relayEndpoint(key)
+
+    /** Sync conversations through the relays with everyone we cannot reach directly. */
+    private fun relaySyncEveryone() {
+        val now = System.currentTimeMillis()
+        val me = selfKey ?: return
+        val byMember = HashMap<String, MutableList<String>>()
+        _conversations.value.values.forEach { c ->
+            if (AirOfficial.isOpen(c.id)) return@forEach
+            c.members.filter { it != me }.forEach { byMember.getOrPut(it) { mutableListOf() }.add(c.id) }
+        }
+        byMember.forEach { (key, conversations) ->
+            if (peers[key]?.isOpen == true) return@forEach
+            val relay = relayEndpoint(key)
+            if (now - relay.syncedAt < RELAY_SYNC_INTERVAL_MS) return@forEach
+            relay.syncedAt = now
+            relay.syncedConversations.clear()
+            sendProfile(relay)
+            conversations.forEach { id ->
+                _conversations.value[id]?.takeIf { it.isGroup }?.let { sendConversation(relay, it) }
+                sendSync(relay, id)
+            }
+        }
     }
 
     private val peers = ConcurrentHashMap<String, Peer>()
@@ -1059,15 +1198,15 @@ object AirNetwork {
             }
     }
 
-    private fun sendSync(peer: Peer, conversationId: String) {
+    private fun sendSync(peer: Endpoint, conversationId: String) {
         if (!peer.syncedConversations.add(conversationId)) return
         send(peer, JSONObject().put("t", "sync").put("conv", conversationId)
             .put("ids", JSONArray(itemIdsOf(conversationId))))
     }
 
-    private fun onData(peer: Peer, json: JSONObject) {
+    private fun onData(peer: Endpoint, json: JSONObject) {
         when (json.optString("t")) {
-            "profile" -> json.optJSONObject("profile")?.let { onProfile(peer, it) }
+            "profile" -> json.optJSONObject("profile")?.let { onProfile(peer, it, json.optString("of").takeIf { o -> o.length == 64 }) }
             "fget" -> onFileRequest(peer, json.optString("id"))
             "fpart" -> onFilePart(json)
             "call" -> AirCall.onSignal(peer.publicKey, json.getJSONObject("call"))
@@ -1104,6 +1243,12 @@ object AirNetwork {
                 }
                 val added = addItems(accepted)
                 AirOfficial.onItems(added)
+                if (peer !is Peer) {
+                    // files of these messages come through the relays too
+                    added.flatMap { attachmentsOf(it) }
+                        .filter { !hasFile(it.id) && it.size <= RELAY_MAX_FILE }
+                        .forEach { send(peer, JSONObject().put("t", "fget").put("id", it.id)) }
+                }
                 added.groupBy { it.conversation }.forEach { (conversationId, list) ->
                     broadcastItems(conversationId, list, except = peer.publicKey)
                 }
@@ -1140,7 +1285,7 @@ object AirNetwork {
         }
     }
 
-    private fun sendConversation(peer: Peer, conversation: AirConversation) {
+    private fun sendConversation(peer: Endpoint, conversation: AirConversation) {
         send(peer, JSONObject().put("t", "conv").put("conv", conversationJson(conversation)))
     }
 
@@ -1149,22 +1294,24 @@ object AirNetwork {
         val targets = if (AirOfficial.isOpen(conversationId)) peers.keys else conversation.members
         targets
             .filter { it != selfKey && it != except && !AirServers.isBlocked(conversationId, it) }
-            .mapNotNull { peers[it] }
-            .filter { it.isOpen }
+            .mapNotNull { key ->
+                when {
+                    peers[key]?.isOpen == true -> peers[key]
+                    // the official server is open to everyone: only connected peers get it live
+                    AirOfficial.isOpen(conversationId) -> null
+                    else -> relayEndpoint(key)
+                }
+            }
             .forEach { sendItems(it, list) }
     }
 
-    private fun sendItems(peer: Peer, list: List<AirItem>) {
+    private fun sendItems(peer: Endpoint, list: List<AirItem>) {
         list.chunked(20).forEach { batch ->
             send(peer, JSONObject().put("t", "items").put("items", JSONArray().apply { batch.forEach { put(it.toJson()) } }))
         }
     }
 
-    private fun send(peer: Peer, json: JSONObject) {
-        val channel = peer.channel ?: return
-        if (channel.state() != DataChannel.State.OPEN) return
-        channel.send(DataChannel.Buffer(ByteBuffer.wrap(json.toString().toByteArray(Charsets.UTF_8)), false))
-    }
+    private fun send(peer: Endpoint, json: JSONObject) = peer.deliver(json)
 
     private fun closePeer(publicKey: String, only: Peer? = null) {
         val peer = peers[publicKey] ?: return
@@ -1199,6 +1346,7 @@ object AirNetwork {
             _items.value = current + added.associateBy { it.id }
             // a message in a direct conversation also makes its author a contact
             save()
+            newItems.tryEmit(added)
             return added
         }
     }
@@ -1254,6 +1402,9 @@ object AirNetwork {
         json.optJSONObject("names")?.let { o ->
             _names.value = o.keys().asSequence().associateWith { o.getString(it) }
         }
+        json.optJSONObject("bots")?.let { o ->
+            _botOwners.value = o.keys().asSequence().associateWith { o.getString(it) }
+        }
         json.optJSONObject("acks")?.let { o ->
             _acks.value = o.keys().asSequence().associateWith { o.getString(it) }
         }
@@ -1276,6 +1427,7 @@ object AirNetwork {
         json.put("read", JSONObject(_readUpTo.value.mapValues { it.value }))
         json.put("acks", JSONObject(_acks.value.mapValues { it.value }))
         json.put("names", JSONObject(_names.value.mapValues { it.value }))
+        json.put("bots", JSONObject(_botOwners.value.mapValues { it.value }))
         json.put("profiles", JSONObject().apply { _profiles.value.forEach { (k, v) -> put(k, profileJson(v).apply { remove("avatarMeta") }) } })
         json.put("files", JSONArray().apply { fileMetas.values.forEach { put(it.toJson()) } })
         json.put("settings", JSONObject().apply {

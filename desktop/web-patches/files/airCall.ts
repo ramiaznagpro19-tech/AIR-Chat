@@ -555,3 +555,19 @@ const airCall = new AirCall();
 (window as unknown as { airCall: AirCall }).airCall = airCall;
 airCall.connect();
 export default airCall;
+
+/**
+ * Copying an id or a link copies what is useful in AIR Chat: a server's AIR Chat link
+ * (air.chat.xxxx000X) or a person's username.
+ */
+async function airShare(id: string) {
+  let text = id;
+  try {
+    const r = await fetch(`/api/air/share/${encodeURIComponent(id)}`);
+    if (r.ok) text = (await r.json()).text ?? id;
+  } catch {
+    // keep the id
+  }
+  await navigator.clipboard.writeText(text);
+}
+(window as unknown as { airShare: typeof airShare }).airShare = airShare;

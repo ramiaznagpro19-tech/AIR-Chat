@@ -155,6 +155,35 @@ class AirBackendTest {
             }
             val emojiFile = step("uploadEmoji") { uploadToAutumn(png, "e.png", "emojis", ContentType.Image.PNG) }
             if (emojiFile != null) step("createEmoji") { createEmoji(emojiFile, serverId, "air") }
+            // Bots hosted by this phone
+            val botName = "bot" + System.currentTimeMillis().toString().takeLast(8)
+            val bot = step("bot: create") {
+                when (val r = AirBots.create(botName)) {
+                    is AirBots.CreateResult.Success -> r.bot
+                    is AirBots.CreateResult.Failure -> error(r.message)
+                }
+            }
+            if (bot != null) {
+                step("bot: add to server") {
+                    val serverKey = AirNetwork.conversations.value.values.first { it.kind == AirConversation.KIND_SERVER && it.name == "Serveur test" }.id
+                    check(AirBots.addToServer(bot.publicKey, serverKey))
+                }
+                suspend fun botSays(start: String): String {
+                    for (i in 0 until 20) {
+                        delay(500)
+                        fetchMessagesFromChannel(channelId, limit = 30, includeUsers = false).messages
+                            ?.firstOrNull { it.content?.startsWith(start) == true }?.content?.let { return it }
+                    }
+                    error("the bot did not answer \"$start\"")
+                }
+                step("bot: !ping") { sendMessage(channelId, "!ping"); botSays("pong") }
+                step("bot: owner adds a command") { sendMessage(channelId, "!commande regles Soyez gentils"); botSays("Commande !regles") }
+                step("bot: custom command") { sendMessage(channelId, "!regles"); botSays("Soyez gentils") }
+                step("bot: shown as a bot") {
+                    val user = chat.stoat.api.routes.user.fetchUser(AirLocalServer.userId(bot.publicKey))
+                    check(user.bot != null && user.username == botName) { "user: $user" }
+                }
+            }
             step("joinOfficial") { chat.stoat.api.routes.invites.joinInviteByCode("AIR.CHAT.2026!").also { check(it.ok) } }
         }
 

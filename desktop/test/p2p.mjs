@@ -58,6 +58,37 @@ try {
   if (link) {
     const joined = await call(47912, "POST", `/invites/${link}`).catch((e) => ({ error: String(e) }));
     check("join with the link", !!joined.server, JSON.stringify(joined).slice(0, 200));
+    // bots hosted by A's computer, used by B
+    const channel = server.channels[0]._id;
+    const bot = await call(47911, "POST", "/bots/create", { name: "bot" + stamp }).catch((e) => ({ error: String(e) }));
+    check("bot created", !!bot._id && bot.user?.bot, JSON.stringify(bot).slice(0, 160));
+    if (bot._id) {
+      await call(47911, "POST", `/bots/${bot._id}/invite`, { server: server.server._id });
+      const waitFor = async (port, start) => {
+        for (let i = 0; i < 40; i++) {
+          await sleep(1500);
+          try {
+            const m = (await call(port, "GET", `/channels/${channel}/messages?limit=30`)).find((x) => x.content?.startsWith(start));
+            if (m) return m;
+          } catch {}
+        }
+        return null;
+      };
+      await sleep(3000);
+      await call(47912, "POST", `/channels/${channel}/messages`, { content: "!ping" });
+      const pong = await waitFor(47912, "pong");
+      check("bot answers another member", !!pong && pong.author === bot._id, JSON.stringify(pong)?.slice(0, 160));
+      await call(47911, "POST", `/channels/${channel}/messages`, { content: "!commande regles Soyez gentils" });
+      await waitFor(47911, "Commande !regles");
+      await call(47912, "POST", `/channels/${channel}/messages`, { content: "!regles" });
+      check("custom command", !!(await waitFor(47912, "Soyez gentils")));
+      let users = await call(47912, "GET", `/users/${bot._id}`);
+      for (let i = 0; i < 10 && !users.bot; i++) {
+        await sleep(1500);
+        users = await call(47912, "GET", `/users/${bot._id}`);
+      }
+      check("bot shown as bot to others", !!users.bot && users.username === "bot" + stamp, JSON.stringify(users).slice(0, 160));
+    }
   }
 } catch (e) {
   check("unexpected error", false, String(e));

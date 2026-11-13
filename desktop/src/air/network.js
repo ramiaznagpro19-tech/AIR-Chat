@@ -45,6 +45,9 @@ export const SIGNAL_KIND = 21420;
 const HELLO_INTERVAL_MS = 60_000;
 export const MAX_FILE_SIZE = 25 * 1024 * 1024;
 const CHUNK_SIZE = 16 * 1024;
+const RELAY_CHUNK = 24_000;
+const RELAY_SYNC_INTERVAL_MS = 5 * 60_000;
+const RELAY_MAX_FILE = 3 * 1024 * 1024;
 const ICE_SERVERS = ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302", "stun:stun.cloudflare.com:3478"];
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -241,6 +244,8 @@ class Network extends Emitter {
   wantedFiles = new Map();
   incomingParts = new Map();
   resolving = new Set();
+  relayEndpoints = new Map();
+  botOwners = new Map(); // bot key -> owner key
   callHandler = null;
 
   get selfKey() {
@@ -297,6 +302,9 @@ class Network extends Emitter {
     this.profiles = new Map();
     this.fileMetas = new Map();
     this.settings = new Map();
+    this.relayEndpoints = new Map();
+    this.botOwners = new Map();
+    this.emit("stopped");
   }
 
   // ---- change helpers ----
@@ -361,7 +369,9 @@ class Network extends Emitter {
           list.sort((a, b) => a.created_at - b.created_at);
           let name;
           try {
-            name = JSON.parse(list[0].content).username;
+            const claim = JSON.parse(list[0].content);
+            name = claim.username;
+            if (claim.bot === true && typeof claim.owner === "string" && claim.owner.length === 64) this.rememberBot(key, claim.owner);
           } catch {}
           if (!name || !account.isUsernameValid(name)) continue;
           if ((await account.ownerOf(name)) === key) found.set(key, account.normalize(name));
@@ -422,8 +432,16 @@ class Network extends Emitter {
     return c;
   }
 
-  post(conversationId, type, text, { title = "", tags = [], parent = null } = {}) {
-    const s = this.session;
+  rememberBot(key, owner, name = null) {
+    if (this.botOwners.get(key) === owner && (!name || this.names.get(key) === name)) return;
+    this.botOwners.set(key, owner);
+    if (name) this.setNames(new Map(this.names).set(key, name));
+    this.save();
+    this.emit("bots");
+  }
+
+  post(conversationId, type, text, { title = "", tags = [], parent = null, author = null } = {}) {
+    const s = author ?? this.session;
     if (!s) return null;
     const unsigned = {
       id: ulid(),
@@ -698,21 +716,40 @@ class Network extends Emitter {
 
   sendProfile(peer) {
     const own = this.selfKey && this.profiles.get(this.selfKey);
-    if (!own) return;
-    this.send(peer, { t: "profile", profile: this.profileJson(own) });
+    if (own) this.send(peer, { t: "profile", profile: this.profileJson(own) });
+    // profiles of the bots this device hosts
+    for (const [key, owner] of this.botOwners) {
+      const p = owner === this.selfKey && this.profiles.get(key);
+      if (p) this.send(peer, { t: "profile", of: key, profile: this.profileJson(p) });
+    }
   }
 
-  onProfile(peer, j) {
+  /** Profile of a bot hosted here: shown to everyone we are connected to. */
+  updateBotProfile(key, displayName, avatar) {
+    if (this.botOwners.get(key) !== this.selfKey) return;
+    const name = displayName == null ? null : take(String(displayName).trim(), 32) || null;
+    const profile = { displayName: name, avatar: avatar || null, updatedAt: Date.now() };
+    this.setProfiles(new Map(this.profiles).set(key, profile));
+    for (const p of this.peers.values()) if (p.isOpen) this.send(p, { t: "profile", of: key, profile: this.profileJson(profile) });
+  }
+
+  onProfile(peer, j, of = null) {
+    // a bot's profile comes from the device of its owner
+    const target = of && this.botOwners.get(of) === peer.publicKey ? of : of ? null : peer.publicKey;
+    if (!target) return;
     const incoming = this.profileFromJson(j);
     if (j.avatarMeta) {
       try {
         this.rememberFileMeta(fileMetaFromJson(j.avatarMeta));
       } catch {}
     }
-    const current = this.profiles.get(peer.publicKey);
+    const current = this.profiles.get(target);
     if (current && current.updatedAt >= incoming.updatedAt) return;
-    this.setProfiles(new Map(this.profiles).set(peer.publicKey, incoming));
-    if (incoming.avatar && !this.hasFile(incoming.avatar)) this.requestFile(incoming.avatar);
+    this.setProfiles(new Map(this.profiles).set(target, incoming));
+    if (incoming.avatar && !this.hasFile(incoming.avatar)) {
+      this.requestFile(incoming.avatar);
+      if (peer.relay) this.send(peer, { t: "fget", id: incoming.avatar });
+    }
   }
 
   // ---- files ----
@@ -806,10 +843,14 @@ class Network extends Emitter {
     const bytes = this.fileBytes(id);
     if (!bytes) return;
     const meta = this.fileMetas.get(id);
+    if (peer.relay && bytes.length > RELAY_MAX_FILE) return;
     const total = Math.max(1, Math.ceil(bytes.length / CHUNK_SIZE));
     for (let index = 0; index < total; index++) {
-      if (!peer.channel || !peer.isOpen) return;
-      while (peer.channel.bufferedAmount > 2 * 1024 * 1024) await sleep(50);
+      if (peer.relay) await sleep(350);
+      else {
+        if (!peer.channel || !peer.isOpen) return;
+        while (peer.channel.bufferedAmount > 2 * 1024 * 1024) await sleep(50);
+      }
       const part = bytes.subarray(index * CHUNK_SIZE, Math.min(bytes.length, (index + 1) * CHUNK_SIZE));
       const msg = { t: "fpart", id, i: index, n: total, d: b64(part) };
       if (index === 0 && meta) msg.meta = fileMetaToJson(meta);
@@ -879,6 +920,8 @@ class Network extends Emitter {
   sendSignal(to, payload) {
     const s = this.session;
     if (!s) return;
+    // bots have no device of their own: their host already has everything
+    if (this.botOwners.has(to)) return;
     try {
       const body = { ...payload, from_name: s.username };
       const sealed = seal(this.signalKey(to), Buffer.from(JSON.stringify(body), "utf8"), `S|${to}`);
@@ -900,6 +943,63 @@ class Network extends Emitter {
     const targets = new Set([...this.contacts.keys()]);
     for (const c of this.conversations.values()) for (const m of c.members) targets.add(m);
     for (const t of targets) if (t && t !== this.selfKey && !this.peers.get(t)?.isOpen) this.sendHello(t);
+    this.relaySyncEveryone();
+  }
+
+  // ---- relays as a fallback when no direct connection is possible (same as the phone app) ----
+
+  relayEndpoint(key) {
+    let e = this.relayEndpoints.get(key);
+    if (!e) this.relayEndpoints.set(key, (e = { publicKey: key, synced: new Set(), relay: true, syncedAt: 0, isOpen: true }));
+    return e;
+  }
+
+  relayDeliver(key, json) {
+    if (json.t === "items" && Array.isArray(json.items)) {
+      let batch = [];
+      let size = 0;
+      for (const item of json.items) {
+        const length = JSON.stringify(item).length;
+        if (batch.length && size + length > RELAY_CHUNK) {
+          this.sendSignal(key, { t: "relay", d: { t: "items", items: batch } });
+          batch = [];
+          size = 0;
+        }
+        batch.push(item);
+        size += length;
+      }
+      if (batch.length) this.sendSignal(key, { t: "relay", d: { t: "items", items: batch } });
+      return;
+    }
+    this.sendSignal(key, { t: "relay", d: json });
+  }
+
+  relaySyncEveryone() {
+    const me = this.selfKey;
+    if (!me) return;
+    const now = Date.now();
+    const byMember = new Map();
+    for (const c of this.conversations.values()) {
+      if (official.isOpen(c.id)) continue;
+      for (const m of c.members) {
+        if (m === me) continue;
+        if (!byMember.has(m)) byMember.set(m, []);
+        byMember.get(m).push(c.id);
+      }
+    }
+    for (const [key, ids] of byMember) {
+      if (this.peers.get(key)?.isOpen) continue;
+      const relay = this.relayEndpoint(key);
+      if (now - relay.syncedAt < RELAY_SYNC_INTERVAL_MS) continue;
+      relay.syncedAt = now;
+      relay.synced.clear();
+      this.sendProfile(relay);
+      for (const id of ids) {
+        const c = this.conversations.get(id);
+        if (c?.isGroup) this.sendConversation(relay, c);
+        this.sendSync(relay, id);
+      }
+    }
   }
 
   onSignalEvent(event) {
@@ -932,6 +1032,9 @@ class Network extends Emitter {
             return;
           case "join":
             return this.onJoinRequest(from, String(json.server || ""));
+          case "relay":
+            if (json.d && json.d.t !== "call") this.onData(this.relayEndpoint(from), json.d);
+            return;
           default:
             if (String(json.t).startsWith("call-")) this.callHandler?.(from, json);
         }
@@ -952,6 +1055,11 @@ class Network extends Emitter {
   }
 
   async onHello(from) {
+    if (process.env.AIR_NO_P2P) {
+      // tests: behave like a network where direct connections never work
+      this.relaySyncEveryone();
+      return;
+    }
     const existing = this.peers.get(from);
     if (existing && (existing.isOpen || Date.now() - existing.createdAt < 20_000)) return;
     if (!this.selfKey) return;
@@ -1058,7 +1166,7 @@ class Network extends Emitter {
   onData(peer, j) {
     switch (j.t) {
       case "profile":
-        if (j.profile) this.onProfile(peer, j.profile);
+        if (j.profile) this.onProfile(peer, j.profile, typeof j.of === "string" ? j.of : null);
         return;
       case "fget":
         this.onFileRequest(peer, String(j.id || ""));
@@ -1109,6 +1217,11 @@ class Network extends Emitter {
         });
         const added = this.addItems(accepted);
         official.onItems(added);
+        if (peer.relay) {
+          for (const meta of added.flatMap((i) => this.attachmentsOf(i))) {
+            if (!this.hasFile(meta.id) && meta.size <= RELAY_MAX_FILE) this.send(peer, { t: "fget", id: meta.id });
+          }
+        }
         const byConv = new Map();
         for (const i of added) {
           if (!byConv.has(i.conversation)) byConv.set(i.conversation, []);
@@ -1161,6 +1274,7 @@ class Network extends Emitter {
       if (t === this.selfKey || t === except || servers.isBlocked(conversationId, t)) continue;
       const p = this.peers.get(t);
       if (p?.isOpen) this.sendItems(p, list);
+      else if (!official.isOpen(conversationId)) this.sendItems(this.relayEndpoint(t), list);
     }
   }
 
@@ -1171,6 +1285,7 @@ class Network extends Emitter {
   }
 
   send(peer, json) {
+    if (peer.relay) return this.relayDeliver(peer.publicKey, json);
     const ch = peer.channel;
     if (!ch || ch.readyState !== "open") return;
     try {
@@ -1249,6 +1364,7 @@ class Network extends Emitter {
       } catch {}
     }
     for (const [k, v] of Object.entries(j.names ?? {})) this.names.set(k, v);
+    for (const [k, v] of Object.entries(j.bots ?? {})) this.botOwners.set(k, v);
     for (const [k, v] of Object.entries(j.acks ?? {})) this.acks.set(k, v);
     for (const [k, v] of Object.entries(j.settings ?? {})) this.settings.set(k, v);
   }
@@ -1269,6 +1385,7 @@ class Network extends Emitter {
       read: Object.fromEntries(this.readUpTo),
       acks: Object.fromEntries(this.acks),
       names: Object.fromEntries(this.names),
+      bots: Object.fromEntries(this.botOwners),
       profiles: Object.fromEntries([...this.profiles].map(([k, v]) => [k, this.profileJson(v, false)])),
       files: [...this.fileMetas.values()].map(fileMetaToJson),
       settings: Object.fromEntries(this.settings),

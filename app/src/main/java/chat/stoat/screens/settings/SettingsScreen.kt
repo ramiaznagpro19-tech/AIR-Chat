@@ -42,6 +42,7 @@ import chat.stoat.api.settings.LoadedSettings
 import chat.stoat.composables.generic.ListHeader
 import chat.stoat.persistence.KVStorage
 import chat.stoat.shared.resources.Res
+import chat.stoat.shared.resources.ic_smart_toy_24dp
 import chat.stoat.shared.resources.about
 import chat.stoat.shared.resources.back
 import chat.stoat.shared.resources.ic_arrow_back_24dp
@@ -177,7 +178,6 @@ fun SettingsScreen(
                     )
                     Spacer(Modifier.height(2.dp))
                     SettingsListItem(
-                        last = true,
                         headlineContent = { Text(text = stringResource(Res.string.settings_sessions)) },
                         leadingContent = {
                             SettingsIcon {
@@ -190,6 +190,22 @@ fun SettingsScreen(
                         modifier = Modifier
                             .testTag("settings_view_sessions")
                             .clickable { navController.navigate("settings/sessions") }
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    SettingsListItem(
+                        last = true,
+                        headlineContent = { Text(text = "Mes bots") },
+                        leadingContent = {
+                            SettingsIcon {
+                                Icon(
+                                    painter = painterResource(Res.drawable.ic_smart_toy_24dp),
+                                    contentDescription = null,
+                                )
+                            }
+                        },
+                        modifier = Modifier
+                            .testTag("settings_view_bots")
+                            .clickable { navController.navigate("settings/bots") }
                     )
 
                     ListHeader {

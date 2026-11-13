@@ -118,6 +118,16 @@ object AirLocalServer {
             idToKey[userId]?.takeIf { it.startsWith("u:") }?.removePrefix("u:")
         }
 
+    /** What to share for a server: its AIR Chat link (air.chat.xxxx000X), which others can join with. */
+    fun shareableServer(apiId: String): String {
+        val server = conversationOfServer(apiId) ?: return apiId
+        if (server.id == AirOfficial.serverId) return AirOfficial.LINK
+        return server.link ?: AirNetwork.inviteCode(server.id) ?: apiId
+    }
+
+    /** What to share for a person: their username, which others can add as a friend. */
+    fun shareableUser(apiId: String): String = publicKeyOf(apiId)?.let { AirNetwork.username(it) } ?: apiId
+
     private fun conversationOfChannel(id: String): AirConversation? {
         val key = idToKey[id] ?: run {
             AirNetwork.conversations.value.keys.forEach { channelId(it) }
@@ -164,7 +174,10 @@ object AirLocalServer {
 
     private fun userJson(publicKey: String): JSONObject {
         val self = publicKey == AirNetwork.selfKey
-        val online = self || publicKey in AirNetwork.online.value
+        val botOwner = AirNetwork.botOwners.value[publicKey]
+        // a bot is online while the device hosting it is
+        val online = self || publicKey in AirNetwork.online.value ||
+                (botOwner != null && (botOwner == AirNetwork.selfKey || botOwner in AirNetwork.online.value))
         return JSONObject().apply {
             put("_id", userId(publicKey))
             put("username", AirNetwork.username(publicKey))
@@ -182,6 +195,7 @@ object AirLocalServer {
             put("status", JSONObject().put("presence", if (online) "Online" else "Invisible"))
             put("badges", if (AirAccount.isVerified(publicKey)) UserBadges.Verified.value else 0L)
             put("flags", 0)
+            botOwner?.let { put("bot", JSONObject().put("owner", userId(it))) }
         }
     }
 
@@ -1345,6 +1359,22 @@ object AirLocalServer {
                         emit(frame("UserUpdate", JSONObject().apply {
                             put("id", userId(key))
                             put("data", JSONObject().put("badges", UserBadges.Verified.value))
+                        }))
+                    }
+                }
+            }
+
+            // Bots found in the directory
+            launch {
+                var previous = AirNetwork.botOwners.value
+                AirNetwork.botOwners.collect { current ->
+                    val before = previous
+                    previous = current
+                    current.keys.filter { it !in before }.forEach { key ->
+                        emit(frame("UserUpdate", JSONObject().apply {
+                            put("id", userId(key))
+                            put("data", JSONObject().put("bot", JSONObject().put("owner", userId(current.getValue(key))))
+                                .put("username", AirNetwork.username(key)))
                         }))
                     }
                 }

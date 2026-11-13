@@ -214,7 +214,8 @@ fun MessageContextSheet(
                         } else {
                             "/channel/${message.channel}/${message.id}"
                         }
-                        val messageLink = "$STOAT_WEB_APP$messagePath"
+                        // AIR Chat has no website: the link to share is the server's AIR Chat link
+                        val messageLink = serverId?.let { chat.stoat.air.AirLocalServer.shareableServer(it) } ?: messagePath
 
                         clipboardManager.setText(AnnotatedString(messageLink))
                         if (Platform.needsShowClipboardNotification()) {

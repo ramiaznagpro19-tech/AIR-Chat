@@ -775,6 +775,7 @@ fun AppEntrypoint(
                     composable("settings/account/mfa") { MfaSettingsScreen(navController) }
                     composable("settings/profile") { ProfileSettingsScreen(navController) }
                     composable("settings/sessions") { SessionSettingsScreen(navController) }
+                    composable("settings/bots") { chat.stoat.air.ui.AirBotsScreen(navController) }
                     composable("settings/appearance") { AppearanceSettingsScreen(navController) }
                     composable("settings/chat") { ChatSettingsScreen(navController) }
                     composable("settings/notifications") { NotificationsSettingsScreen(navController) }

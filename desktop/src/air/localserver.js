@@ -3,9 +3,12 @@
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { WebSocketServer } from "ws";
-import { hex, randomBytes, sha256, ulid, ALPHABET } from "./crypto.js";
+import { hex, randomBytes, ulid } from "./crypto.js";
 import { account } from "./account.js";
+import { channelId, deriveId, idToKey, serverId, userId } from "./ids.js";
+import { bots, HELP_OWNER } from "./bots.js";
 import { fileMetaTag, fileMetaToJson, ITEM, KIND, MAX_FILE_SIZE, network } from "./network.js";
 import { ALL, P, servers } from "./servers.js";
 import { official } from "./official.js";
@@ -13,7 +16,6 @@ import { official } from "./official.js";
 const TOKEN_PREFIX = "air-local.";
 const SESSION_ID = "air-session";
 const ALL_PERMISSIONS = Number(ALL);
-const ID_EPOCH = 1735689600000;
 const VERIFIED_BADGE = 1 << 11;
 
 const MSG = {
@@ -29,45 +31,18 @@ const MSG = {
   UploadMissing: "Ce fichier n'est pas disponible.",
 };
 
+// The official server shows the AIR Chat logo
+const OFFICIAL_ICON_FILE = fileURLToPath(new URL("../../build/icon.png", import.meta.url));
+const OFFICIAL_ICON = { id: "airofficiallogo", tag: "icons", filename: "air-chat.png", contentType: "image/png", size: 0, width: 256, height: 256, sha256: "" };
+
 const iso = (ms) => new Date(ms).toISOString();
 const num = (v) => (typeof v === "bigint" ? Number(v) : v);
-
-// ---- ids (same derivation as the Android app, so ids match everywhere) ----
-
-const idToKey = new Map();
-
-function deriveId(prefix, value) {
-  let time = ID_EPOCH;
-  let t = "";
-  for (let i = 0; i < 10; i++) {
-    t = ALPHABET[time % 32] + t;
-    time = Math.floor(time / 32);
-  }
-  const hash = sha256(`${prefix}:${value}`);
-  let out = t;
-  let bits = 0;
-  let acc = 0;
-  let index = 0;
-  while (out.length < 26) {
-    if (bits < 5) {
-      acc = ((acc << 8) | hash[index++]) & 0xffff;
-      bits += 8;
-    }
-    bits -= 5;
-    out += ALPHABET[(acc >> bits) & 31];
-  }
-  idToKey.set(out, `${prefix}:${value}`);
-  return out;
-}
-
-export const userId = (key) => deriveId("u", key);
-const channelId = (conv) => deriveId("c", conv);
-const serverId = (conv) => deriveId("s", conv);
 
 function knownKeys() {
   const keys = new Set();
   if (network.selfKey) keys.add(network.selfKey);
   for (const k of network.contacts.keys()) keys.add(k);
+  for (const b of bots.bots) keys.add(b.publicKey);
   for (const c of network.conversations.values()) for (const m of c.members) keys.add(m);
   return keys;
 }
@@ -120,7 +95,9 @@ function autumnJson(m) {
 
 function userJson(key) {
   const self = key === network.selfKey;
-  const online = self || network.online.has(key);
+  const botOwner = network.botOwners.get(key);
+  // a bot is online while the device hosting it is
+  const online = self || network.online.has(key) || (!!botOwner && (botOwner === network.selfKey || network.online.has(botOwner)));
   const profile = network.profiles.get(key);
   const j = { _id: userId(key), username: network.username(key), discriminator: "0001" };
   if (profile?.displayName) j.display_name = profile.displayName;
@@ -131,6 +108,7 @@ function userJson(key) {
   j.status = { presence: online ? "Online" : "Invisible" };
   j.badges = account.isVerified(key) ? VERIFIED_BADGE : 0;
   j.flags = 0;
+  if (botOwner) j.bot = { owner: userId(botOwner) };
   return j;
 }
 
@@ -190,6 +168,7 @@ function serverJson(c, withChannelObjects = false) {
   const j = { _id: serverId(c.id), owner: userId(servers.ownerOf(c) ?? ""), name: state.name };
   if (state.description) j.description = state.description;
   if (state.icon) j.icon = autumnJson(state.icon);
+  else if (official.isOpen(c.id)) j.icon = autumnJson(OFFICIAL_ICON);
   if (state.banner) j.banner = autumnJson(state.banner);
   j.channels = visibleChannels(c).map((ch) => (withChannelObjects ? channelJson(ch) : channelId(ch.id)));
   j.default_permissions = num(state.defaultPermissions);
@@ -309,6 +288,7 @@ const ok = (body = {}) => ({ code: 200, body });
 const error = (code, type) => ({ code, body: { type } });
 
 function messagesResponse(conversation, list, includeUsers) {
+  network.resolveNames(new Set(list.map((m) => m.author)));
   const messages = list.map(messageJson);
   if (!includeUsers) return messages;
   const authors = new Set([...list.map((m) => m.author), ...conversation.members]);
@@ -538,6 +518,13 @@ export class LocalServer {
     }
     if (req.method === "GET" && s.length >= 2) {
       const id = s[1];
+      if (id === OFFICIAL_ICON.id) {
+        try {
+          return { code: 200, bytes: fs.readFileSync(OFFICIAL_ICON_FILE), contentType: "image/png" };
+        } catch {
+          return error(404, "NotFound");
+        }
+      }
       if (!network.hasFile(id) && !network.fileMeta(id)) return error(404, "NotFound");
       const bytes = await network.awaitFile(id);
       if (!bytes) return error(404, "NotFound");
@@ -611,6 +598,21 @@ export class LocalServer {
       return ok(userJson(self));
     }
     if (method === "POST" && pathStr === "/users/friend") return this.addFriend(String(json.username ?? ""));
+    if (method === "PATCH" && s[0] === "users" && s.length === 2) {
+      // profile of one of my bots
+      const key = publicKeyOf(s[1]);
+      if (!key || !bots.isMine(key)) return error(403, "MissingPermission");
+      const current = network.profiles.get(key) ?? { displayName: null, avatar: null };
+      const remove = json.remove ?? [];
+      let name = current.displayName;
+      let avatar = current.avatar;
+      if ("display_name" in json) name = json.display_name;
+      if ("avatar" in json) avatar = json.avatar || null;
+      if (remove.includes("DisplayName")) name = null;
+      if (remove.includes("Avatar")) avatar = null;
+      network.updateBotProfile(key, name, avatar);
+      return ok(userJson(key));
+    }
     if (s.length >= 2 && s[0] === "users") return this.userRoute(method, s);
 
     if (method === "POST" && pathStr === "/channels/create") {
@@ -627,6 +629,84 @@ export class LocalServer {
     if (s.length >= 2 && s[0] === "invites") return this.inviteRoute(method, s.slice(1).join("/"));
     if (s.length === 3 && s[0] === "custom" && s[1] === "emoji") return this.emojiRoute(method, s[2], json);
     if (s[0] === "air" && s[1] === "discover") return ok(await servers.fetchListings());
+    if (s[0] === "bots") return this.botRoute(method, s.slice(1), json);
+    if (s[0] === "air" && s[1] === "share" && s[2]) return ok({ text: this.shareable(decodeURIComponent(s[2])) });
+    return error(404, "NotFound");
+  }
+
+  /** What to share for an id: a server's AIR Chat link, or a person's username. */
+  shareable(id) {
+    const linkOf = (server) =>
+      official.isOpen(server.id) ? official.LINK : server.link ?? network.inviteCode(server.id) ?? id;
+    const server = conversationOfServer(id);
+    if (server) return linkOf(server);
+    const key = publicKeyOf(id);
+    if (key) return network.username(key);
+    const channel = conversationOfChannel(id);
+    if (channel?.parent) {
+      const srv = network.conversations.get(channel.parent);
+      if (srv) return linkOf(srv);
+    }
+    if (channel?.kind === KIND.DM) {
+      const other = [...channel.members].find((m) => m !== network.selfKey);
+      if (other) return network.username(other);
+    }
+    return id;
+  }
+
+  // ---- bots (hosted by this computer) ----
+
+  botJson(bot) {
+    return {
+      _id: userId(bot.publicKey),
+      owner: userId(network.selfKey ?? ""),
+      token: "air-bot-" + bot.publicKey.slice(0, 16),
+      public: false,
+      analytics: false,
+      discoverable: false,
+      flags: 0,
+    };
+  }
+
+  async botRoute(method, s, json) {
+    if (method === "GET" && s[0] === "@me") {
+      return ok({ bots: bots.bots.map((b) => this.botJson(b)), users: bots.bots.map((b) => userJson(b.publicKey)) });
+    }
+    if (method === "POST" && s[0] === "create") {
+      const r = await bots.create(String(json.name ?? ""));
+      if (r.error) return error(400, r.error);
+      return ok({ ...this.botJson(r.bot), user: userJson(r.bot.publicKey) });
+    }
+    const key = publicKeyOf(s[0] ?? "");
+    if (!key) return error(404, "NotFound");
+    const bot = bots.get(key);
+    if (s.length === 1 && method === "GET") {
+      if (!bot) return error(404, "NotFound");
+      return ok({ bot: this.botJson(bot), user: userJson(key) });
+    }
+    if (s.length === 1 && method === "PATCH") return bot ? ok(this.botJson(bot)) : error(404, "NotFound");
+    if (s[1] === "discover") return ok({});
+    if (s.length === 1 && method === "DELETE") {
+      bots.delete(key);
+      return ok({});
+    }
+    if (s[1] === "invite" && method === "GET") {
+      const user = userJson(key);
+      return ok({ _id: user._id, username: user.username, ...(user.avatar ? { avatar: user.avatar } : {}), description: HELP_OWNER });
+    }
+    if (s[1] === "invite" && method === "POST") {
+      if (!bot) return error(403, "Seul le créateur du bot peut l'ajouter (le bot est hébergé par son appareil).");
+      if (json.server) {
+        const server = conversationOfServer(json.server);
+        if (!server || !bots.addToServer(key, server.id)) return error(400, "Impossible d'ajouter le bot à ce serveur.");
+        return ok({});
+      }
+      if (json.group) {
+        const group = conversationOfChannel(json.group);
+        if (!group || !bots.addToGroup(key, group.id)) return error(400, "Impossible d'ajouter le bot à ce groupe.");
+        return ok({});
+      }
+    }
     return error(404, "NotFound");
   }
 
@@ -667,6 +747,7 @@ export class LocalServer {
       if (s[2] === "default_avatar") target = s[1];
       else return error(404, "NotFound");
     }
+    network.resolveNames([target]);
     if (method === "GET" && s.length === 2) return ok(userJson(target));
     if (method === "GET" && s[2] === "profile") return ok({ content: "" });
     if (method === "GET" && s[2] === "default_avatar") {
@@ -1232,6 +1313,14 @@ export class LocalServer {
     offs.push(
       network.on("names", (before, current) => {
         for (const [k, v] of current) if (before.get(k) !== v) send("UserUpdate", { id: userId(k), data: { username: network.username(k) } });
+      }),
+    );
+
+    offs.push(
+      network.on("bots", () => {
+        for (const [k, owner] of network.botOwners) {
+          send("UserUpdate", { id: userId(k), data: { bot: { owner: userId(owner) }, username: network.username(k) } });
+        }
       }),
     );
 

@@ -94,7 +94,7 @@ fun ColumnScope.GroupDMMemberContextSheet(
             )
         },
         onClick = {
-            clipboardManager.setText(AnnotatedString(userId))
+            clipboardManager.setText(AnnotatedString(chat.stoat.air.AirLocalServer.shareableUser(userId)))
 
             if (Platform.needsShowClipboardNotification()) {
                 Toast.makeText(
@@ -145,7 +145,7 @@ fun ColumnScope.ServerMemberContextSheet(
             )
         },
         onClick = {
-            clipboardManager.setText(AnnotatedString(userId))
+            clipboardManager.setText(AnnotatedString(chat.stoat.air.AirLocalServer.shareableUser(userId)))
 
             if (Platform.needsShowClipboardNotification()) {
                 Toast.makeText(

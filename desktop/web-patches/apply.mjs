@@ -186,3 +186,56 @@ patch("components/common/lib/env.ts", [
     "const DEFAULT_API_URL = typeof location !== \"undefined\" ? location.origin + \"/api\" : \"http://127.0.0.1:47821/api\";",
   ],
 ]);
+
+// 11. Emojis are part of the app (no outside image server)
+{
+  const { execSync } = await import("node:child_process");
+  const tmp = fs.mkdtempSync(path.join((await import("node:os")).tmpdir(), "air-emoji-"));
+  execSync("npm install --no-save --no-audit --no-fund @twemoji/svg@15.0.0", { cwd: tmp, stdio: "inherit" });
+  const src = path.join(tmp, "node_modules", "@twemoji", "svg");
+  const dest = p("public", "emoji");
+  fs.mkdirSync(dest, { recursive: true });
+  for (const f of fs.readdirSync(src)) if (f.endsWith(".svg")) fs.copyFileSync(path.join(src, f), path.join(dest, f));
+}
+patch("components/markdown/emoji/UnicodeEmoji.tsx", [
+  [
+    "return `https://static.stoat.chat/emoji/${pack}/${toCodepoint(text)}.svg?v=1`;",
+    "void pack;\n  const cp = toCodepoint(text);\n  return `/emoji/${cp.includes(\"200d\") ? cp : cp.replace(/-fe0f/g, \"\")}.svg`;",
+  ],
+]);
+// no outside location lookup
+patch("src/interface/channels/AgeGate.tsx", [
+  ['const response = await fetch("https://geo.revolt.chat");', "const response = new Response(\"{}\");"],
+]);
+
+// 12. Copying ids and links gives the AIR Chat link of the server, or the username
+patch("components/app/menus/ServerContextMenu.tsx", [["navigator.clipboard.writeText(props.server.id);", "(window as any).airShare(props.server.id);"]]);
+patch("components/app/menus/UserContextMenu.tsx", [["navigator.clipboard.writeText(props.user.id);", "(window as any).airShare(props.user.id);"]]);
+patch("components/app/menus/ChannelContextMenu.tsx", [
+  ["navigator.clipboard.writeText(props.channel.id);", "(window as any).airShare(props.channel.id);"],
+  [/navigator\.clipboard\.writeText\(\s*instance\.href\(\s*`\$\{\s*props\.channel\.server[\s\S]*?\),\s*\);/, "(window as any).airShare(props.channel.id);"],
+]);
+patch("components/app/menus/MessageContextMenu.tsx", [
+  [/navigator\.clipboard\.writeText\(\s*instance\.href\(\s*`\$\{\s*props\.message!\.server[\s\S]*?\),\s*\);/, "(window as any).airShare(props.message!.channelId);"],
+]);
+patch("components/ui/components/features/profiles/ProfileBanner.tsx", [
+  ["`${props.user.username}#${props.user.discriminator}`,", "props.user.username,"],
+]);
+
+// 13. Bots without code: explain how to set them up instead of linking to developer docs
+patch("components/app/interface/settings/user/bots/MyBots.tsx", [
+  [
+    /<CategoryButton\s+action="external"\s+icon=\{<MdLibraryBooks \{\.\.\.iconSize\(22\)\} \/>\}[\s\S]*?<\/CategoryButton>/,
+    `<CategoryButton
+        icon={<MdLibraryBooks {...iconSize(22)} />}
+        onClick={() => {}}
+        description={
+          <span style={{ "white-space": "pre-line" }}>
+            {"Un bot est hébergé par cet ordinateur : il répond tant qu'AIR Chat est ouvert ici. Ajoutez-le à un serveur depuis sa page (Inviter le bot), puis écrivez !aide dans un salon.\\n\\nPour tout le monde : !aide, !ping, !info, !des, !choisir a | b, et vos commandes.\\n\\nRéglages (vous uniquement) :\\n• !commande nom réponse · !supprimer nom\\n• !bienvenue texte ({user}) · !bienvenue off\\n• !auto mot = réponse · !auto-supprimer mot\\n• !interdire mot · !autoriser mot\\n• !prefixe ?"}
+          </span>
+        }
+      >
+        Comment régler un bot (sans code)
+      </CategoryButton>`,
+  ],
+]);

@@ -34,6 +34,9 @@ if (!app.requestSingleInstanceLock()) {
     }
     account.install();
 
+    // the interface ships with the app: never keep an old copy cached by a service worker
+    await session.defaultSession.clearStorageData({ storages: ["serviceworkers", "cachestorage"] }).catch(() => {});
+
     const server = new LocalServer({ port: PORT, webDir: path.join(here, "..", "web") });
     await server.listen();
 
@@ -48,6 +51,7 @@ if (!app.requestSingleInstanceLock()) {
         url.startsWith("blob:") ||
         url.startsWith("devtools:") ||
         url.startsWith("chrome-extension:");
+      if (!allowed) console.log("[air] blocked", details.url.slice(0, 200));
       callback({ cancel: !allowed });
     });
     session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => {

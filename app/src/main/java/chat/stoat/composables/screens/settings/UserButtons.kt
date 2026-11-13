@@ -393,7 +393,7 @@ fun UserButtons(
                         },
                         onClick = {
                             scope.launch {
-                                clipboard.setText(AnnotatedString(user.id!!))
+                                clipboard.setText(AnnotatedString(chat.stoat.air.AirLocalServer.shareableUser(user.id!!)))
                             }
                         }
                     )

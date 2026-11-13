@@ -221,7 +221,7 @@ fun ServerContextSheet(
             onClick = {
                 if (server.id == null) return@SheetButton
 
-                clipboardManager.setText(AnnotatedString(server.id!!))
+                clipboardManager.setText(AnnotatedString(chat.stoat.air.AirLocalServer.shareableServer(server.id!!)))
 
                 if (Platform.needsShowClipboardNotification()) {
                     Toast.makeText(
