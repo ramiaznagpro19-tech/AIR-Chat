@@ -74,6 +74,10 @@ const upload = (page, tag) =>
 
 const A = await open(47931);
 const B = await open(47932);
+if (process.env.DEBUG_TYPING) {
+  A.on("websocket", (w) => w.on("framereceived", (f) => String(f.payload).includes("Typing") && console.log("A got", String(f.payload).slice(0, 120))));
+  B.on("websocket", (w) => w.on("framesent", (f) => String(f.payload).includes("Typing") && console.log("B sent", String(f.payload).slice(0, 120))));
+}
 
 // ---- accounts ----
 await A.goto("http://127.0.0.1:47931/login");
@@ -137,6 +141,30 @@ await attempt("server", async () => {
   await go(A, `/server/${sid}/channel/${general}`);
   await shot(A, "serveur-salon-messages-bot");
 });
+await attempt("pinned", async () => {
+  await api(A, "POST", `/channels/${general}/messages/${first._id}/pin`);
+  await sleep(1500);
+  await go(A, `/server/${sid}/channel/${general}`);
+  await A.getByText("push_pin").first().click().catch(() => A.locator('[aria-label*="pin" i]').first().click());
+  await sleep(1500);
+  await shot(A, "messages-epingles");
+  await A.keyboard.press("Escape");
+});
+await attempt("typing", async () => {
+  await go(A, `/server/${sid}/channel/${general}`);
+  await B.goto(`http://127.0.0.1:47932/server/${sid}/channel/${general}`);
+  await sleep(4000);
+  await B.locator('textarea, [contenteditable="true"]').last().click({ timeout: 10000 });
+  const typing = B.keyboard.type("je réponds dans une seconde, je regarde le serveur", { delay: 150 });
+  for (let i = 0; i < 12; i++) {
+    await sleep(500);
+    const t = await A.evaluate(() => /en train d.écrire|is typing/i.test(document.body.innerText));
+    if (process.env.DEBUG_TYPING) console.log("A shows typing", i, t);
+    if (t && i >= 2) break;
+  }
+  await shot(A, "en-train-d-ecrire");
+  await typing;
+});
 await attempt("members", async () => {
   await A.getByText("robot" + stamp).last().click();
   await shot(A, "profil-du-bot");
@@ -175,10 +203,10 @@ const settings = async (label, name) =>
   });
 await settings(null, "parametres");
 await settings(/^(Profil|Profile)$/, "parametres-profil");
+await settings(/Mon compte|My Account/, "mon-compte-mot-de-passe");
 await settings(/Mes bots|My Bots/, "mes-bots");
 await settings(/Apparence|Appearance/, "apparence");
 await settings(/Voix|Voice/, "voix-et-video");
-await settings(/Notifications/, "notifications");
 await settings(/Langue|Language/, "langue");
 
 const serverSettings = async (label, name) =>

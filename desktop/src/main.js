@@ -55,7 +55,7 @@ if (!app.requestSingleInstanceLock()) {
       callback({ cancel: !allowed });
     });
     session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => {
-      callback(["media", "notifications", "clipboard-read", "clipboard-sanitized-write", "display-capture", "fullscreen"].includes(permission));
+      callback(["media", "clipboard-read", "clipboard-sanitized-write", "display-capture", "fullscreen"].includes(permission));
     });
 
     // screen sharing in calls: the whole screen

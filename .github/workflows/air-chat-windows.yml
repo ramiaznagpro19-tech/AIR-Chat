@@ -139,6 +139,11 @@ jobs:
 
             Même réseau peer-to-peer que l'application Android : le PC et le téléphone se parlent directement.
             Aucun service Stoat n'est utilisé.
+
+            Bots en code : **bot.py** (Python) et **bot.html** (page web), voir **LISEZMOI.md**.
           files: |
             desktop/dist/AIR-Chat-Setup-*.exe
             desktop/dist/AIR-Chat-Portable-*.exe
+            desktop/bot-examples/bot.py
+            desktop/bot-examples/bot.html
+            desktop/bot-examples/LISEZMOI.md

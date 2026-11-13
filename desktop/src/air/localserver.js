@@ -231,6 +231,12 @@ function messageViews(conversation) {
       if (r.type === ITEM.REACT) byEmoji.get(emoji).add(r.author);
       else byEmoji.get(emoji).delete(r.author);
     });
+  // pinned messages: anyone in a private conversation, moderators in a server
+  const pinned = new Set();
+  items
+    .filter((i) => (i.type === ITEM.PIN || i.type === ITEM.UNPIN) && (!server || moderator(i.author)))
+    .sort((a, b) => a.createdAt - b.createdAt)
+    .forEach((p) => (p.type === ITEM.PIN ? pinned.add(p.parent) : pinned.delete(p.parent)));
   const views = [];
   if (server && visibleChannels(server)[0]?.id === conversation.id) {
     for (const j of network.items.values()) {
@@ -264,6 +270,7 @@ function messageViews(conversation) {
       reactions: rx,
       replies: m.tags.filter((t) => t.length === 26),
       attachments: network.attachmentsOf(m),
+      pinned: pinned.has(m.id),
     });
   }
   return views;
@@ -278,6 +285,7 @@ function messageJson(m) {
   if (m.edited) j.edited = iso(m.edited);
   if (m.reactions.size) j.reactions = Object.fromEntries(m.reactions);
   if (m.replies.length) j.replies = m.replies;
+  if (m.pinned) j.pinned = true;
   if (m.attachments.length) j.attachments = m.attachments.map(autumnJson);
   return j;
 }
@@ -432,7 +440,7 @@ export class LocalServer {
         return this.wss.handleUpgrade(req, socket, head, (ws) => this.callSocket(ws, url.searchParams.get("token") ?? ""));
       }
       if (url.pathname !== "/events") return socket.destroy();
-      this.wss.handleUpgrade(req, socket, head, (ws) => this.realtime(ws, url.searchParams.get("token") ?? ""));
+      this.wss.handleUpgrade(req, socket, head, (ws) => this.acceptEvents(ws, url.searchParams.get("token") ?? ""));
     });
     await new Promise((resolve, reject) => {
       this.http.once("error", reject);
@@ -546,6 +554,12 @@ export class LocalServer {
     } catch {}
 
     if (method === "GET" && pathStr === "/") return ok(rootJson(this.base));
+    const botToken = req.headers["x-bot-token"];
+    if (botToken) {
+      const bot = this.ensureStarted() && bots.byToken(String(botToken));
+      if (!bot) return error(401, "InvalidSession");
+      return this.botApi(bot, method, s, json, url);
+    }
     if (method === "POST" && pathStr === "/auth/session/login") return this.login(json);
     if (method === "POST" && pathStr === "/auth/account/create") return this.register(json);
 
@@ -560,6 +574,13 @@ export class LocalServer {
     if (method === "POST" && pathStr === "/auth/session/logout") {
       network.stop();
       account.logout();
+      return ok({});
+    }
+    if (method === "PATCH" && pathStr === "/auth/account/change/password") {
+      const r = await account.changePassword(String(json.current_password ?? ""), String(json.password ?? ""));
+      if (r.error === "WrongPassword") return error(401, "Mot de passe actuel incorrect.");
+      if (r.error === "PasswordInvalid") return error(400, "Le nouveau mot de passe doit contenir au moins 4 lettres, 3 chiffres et 2 caractères spéciaux.");
+      if (r.error) return error(400, MSG.NetworkError);
       return ok({});
     }
     if (s[0] === "auth" || s[0] === "push" || s[0] === "safety" || s[0] === "policy") return ok({});
@@ -660,7 +681,7 @@ export class LocalServer {
     return {
       _id: userId(bot.publicKey),
       owner: userId(network.selfKey ?? ""),
-      token: "air-bot-" + bot.publicKey.slice(0, 16),
+      token: bot.config.token,
       public: false,
       analytics: false,
       discoverable: false,
@@ -684,7 +705,11 @@ export class LocalServer {
       if (!bot) return error(404, "NotFound");
       return ok({ bot: this.botJson(bot), user: userJson(key) });
     }
-    if (s.length === 1 && method === "PATCH") return bot ? ok(this.botJson(bot)) : error(404, "NotFound");
+    if (s.length === 1 && method === "PATCH") {
+      if (!bot) return error(404, "NotFound");
+      if ((json.remove ?? []).includes("Token")) bots.resetToken(key);
+      return ok(this.botJson(bot));
+    }
     if (s[1] === "discover") return ok({});
     if (s.length === 1 && method === "DELETE") {
       bots.delete(key);
@@ -825,7 +850,7 @@ export class LocalServer {
     if (sub.length === 1 && sub[0] === "search") {
       const q = String(json.query ?? "").toLowerCase();
       const found = messageViews(conversation)
-        .filter((m) => q && m.content.toLowerCase().includes(q))
+        .filter((m) => (json.pinned === true ? m.pinned : q && m.content.toLowerCase().includes(q)))
         .sort((a, b) => (a.id < b.id ? 1 : -1))
         .slice(0, 100);
       return ok(messagesResponse(conversation, found, json.include_users === true));
@@ -843,7 +868,14 @@ export class LocalServer {
       }
       return ok({});
     }
-    if (sub.length === 3 && sub[0] === "messages" && sub[2] === "pin") return ok({});
+    if (sub.length === 3 && sub[0] === "messages" && sub[2] === "pin") {
+      const me = network.selfKey;
+      if (server && me !== servers.ownerOf(server) && (servers.permissions(server, me) & P.MANAGE_MESSAGES) === 0n) {
+        return error(403, "MissingPermission");
+      }
+      network.post(conversation.id, method === "DELETE" ? ITEM.UNPIN : ITEM.PIN, "", { parent: sub[1] });
+      return ok({});
+    }
     return error(404, "NotFound");
   }
 
@@ -1175,6 +1207,139 @@ export class LocalServer {
     };
   }
 
+  /** The realtime connection: the interface (session token) or a bot program (bot token). */
+  acceptEvents(ws, token) {
+    const start = (t) => {
+      const bot = this.ensureStarted() && bots.byToken(t);
+      if (bot) this.botRealtime(ws, bot);
+      else this.realtime(ws, t);
+    };
+    if (token) return start(token);
+    // bot libraries authenticate with their first message
+    const timer = setTimeout(() => ws.close(), 15_000);
+    ws.once("message", (data) => {
+      clearTimeout(timer);
+      try {
+        const msg = JSON.parse(data.toString());
+        if (msg.type === "Authenticate" && msg.token) return start(String(msg.token));
+      } catch {}
+      ws.close();
+    });
+  }
+
+  // ---- code bots (Python, HTML...): they talk and react, but never change servers or the app ----
+
+  async botApi(bot, method, s, json, url) {
+    const me = bot.publicKey;
+    const denied = error(403, "Un bot ne peut pas modifier les serveurs, les salons, les rôles ni l'application AIR Chat.");
+    const pathStr = "/" + s.join("/");
+    const inConversation = (c) => !!c && c.members.has(me) && !official.isOpen(c.id);
+    if (method === "GET" && pathStr === "/users/@me") return ok(userJson(me));
+    if (method === "GET" && s[0] === "users" && s.length === 2) {
+      const key = publicKeyOf(s[1]);
+      return key ? ok(userJson(key)) : error(404, "NotFound");
+    }
+    if (method === "GET" && s[0] === "users" && s[2] === "profile") return ok({ content: "" });
+    if (s[0] === "channels" && s.length >= 2) {
+      const conversation = conversationOfChannel(s[1]);
+      if (!inConversation(conversation)) return error(404, "NotFound");
+      const sub = s.slice(2);
+      if (method === "GET" && !sub.length) return ok(channelJson(conversation));
+      if (method === "GET" && sub.length === 1 && sub[0] === "messages") return this.getMessages(conversation, url);
+      if (method === "POST" && sub.length === 1 && sub[0] === "messages") {
+        const ids = (json.attachments ?? []).slice(0, 5);
+        const files = ids.map((id) => network.fileMeta(id)).filter(Boolean);
+        const replies = (json.replies ?? []).map((r) => (typeof r === "string" ? r : r?.id)).filter(Boolean);
+        const content = String(json.content ?? "").slice(0, 4000);
+        if (!content && !files.length) return error(400, "EmptyMessage");
+        const item = network.post(conversation.id, ITEM.MESSAGE, content, { tags: [...replies, ...files.map(fileMetaTag)], author: bot.session });
+        const view = messageViews(conversation).find((m) => m.id === item.id);
+        return view ? ok({ ...messageJson(view), nonce: json.nonce ?? "" }) : error(400, "InternalError");
+      }
+      if (sub.length === 2 && sub[0] === "messages") {
+        const view = messageViews(conversation).find((m) => m.id === sub[1]);
+        if (!view) return error(404, "NotFound");
+        if (method === "GET") return ok(messageJson(view));
+        if (method === "PATCH") {
+          if (view.author !== me) return denied;
+          network.post(conversation.id, ITEM.EDIT, String(json.content ?? "").slice(0, 4000), { parent: view.id, author: bot.session });
+          return ok(messageJson(messageViews(conversation).find((m) => m.id === view.id) ?? view));
+        }
+        if (method === "DELETE") {
+          // its own messages (others only with the permission to manage messages, checked by everyone)
+          network.post(conversation.id, ITEM.DELETE, "", { parent: view.id, author: bot.session });
+          return ok({});
+        }
+      }
+      if (sub.length === 4 && sub[0] === "messages" && sub[2] === "reactions" && (method === "PUT" || method === "DELETE")) {
+        network.post(conversation.id, method === "PUT" ? ITEM.REACT : ITEM.UNREACT, decodeURIComponent(sub[3]), { parent: sub[1], author: bot.session });
+        return ok({});
+      }
+      if (sub[0] === "typing") return ok({});
+      return denied;
+    }
+    if (s[0] === "servers" && s.length >= 2 && method === "GET") {
+      const server = conversationOfServer(s[1]);
+      if (!inConversation(server)) return error(404, "NotFound");
+      if (s.length === 2) return ok(serverJson(server));
+      if (s[2] === "members" && s.length === 3) {
+        const members = serverMembers(server);
+        return ok({ members: members.map((k) => memberJson(server, k)), users: members.map(userJson) });
+      }
+      if (s[2] === "members" && s.length === 4) {
+        const key = publicKeyOf(s[3]);
+        return key && serverMembers(server).includes(key) ? ok(memberJson(server, key)) : error(404, "NotFound");
+      }
+    }
+    return denied;
+  }
+
+  botRealtime(ws, bot) {
+    const me = bot.publicKey;
+    const send = (type, obj = {}) => {
+      if (ws.readyState === 1) ws.send(JSON.stringify({ ...obj, type }, (k, v) => (typeof v === "bigint" ? Number(v) : v)));
+    };
+    const mine = () => [...network.conversations.values()].filter((c) => c.members.has(me) && !official.isOpen(c.id));
+    send("Authenticated");
+    const convs = mine();
+    const keys = new Set([me]);
+    convs.forEach((c) => c.members.forEach((m) => keys.add(m)));
+    send("Ready", {
+      users: [...keys].map(userJson),
+      servers: convs.filter((c) => c.kind === KIND.SERVER).map((c) => serverJson(c)),
+      channels: convs.filter((c) => c.kind !== KIND.SERVER).map(channelJson),
+      members: convs.filter((c) => c.kind === KIND.SERVER).map((c) => memberJson(c, me)),
+      emojis: [],
+    });
+    const off = network.on("items", (fresh) => {
+      for (const item of fresh) {
+        const conversation = network.conversations.get(item.conversation);
+        if (!conversation || !conversation.members.has(me) || official.isOpen(conversation.id)) continue;
+        const channel = channelId(conversation.id);
+        if (item.type === ITEM.MESSAGE) {
+          const v = messageViews(conversation).find((m) => m.id === item.id);
+          if (v) send("Message", messageJson(v));
+        } else if (item.type === ITEM.EDIT) {
+          const v = messageViews(conversation).find((m) => m.id === item.parent);
+          if (v) send("MessageUpdate", { id: v.id, channel, data: { content: v.content } });
+        } else if (item.type === ITEM.DELETE) {
+          send("MessageDelete", { id: item.parent, channel });
+        } else if (item.type === ITEM.REACT || item.type === ITEM.UNREACT) {
+          send(item.type === ITEM.REACT ? "MessageReact" : "MessageUnreact", { id: item.parent, channel_id: channel, user_id: userId(item.author), emoji_id: item.text });
+        } else if (item.type === ITEM.JOIN && conversation.kind === KIND.SERVER) {
+          send("ServerMemberJoin", { id: serverId(conversation.id), user: userId(item.author), member: memberJson(conversation, item.author) });
+        }
+      }
+    });
+    ws.on("message", (data) => {
+      try {
+        const msg = JSON.parse(data.toString());
+        if (msg.type === "Ping") send("Pong", { data: msg.data });
+      } catch {}
+    });
+    ws.on("close", off);
+  }
+
   realtime(ws, token) {
     const send = (type, obj = {}) => {
       if (ws.readyState === 1) ws.send(JSON.stringify({ ...obj, type }, (k, v) => (typeof v === "bigint" ? Number(v) : v)));
@@ -1247,6 +1412,12 @@ export class LocalServer {
             case ITEM.DELETE:
               if (!messageViews(conversation).some((m) => m.id === item.parent)) send("MessageDelete", { id: item.parent, channel });
               break;
+            case ITEM.PIN:
+            case ITEM.UNPIN: {
+              const v = messageViews(conversation).find((m) => m.id === item.parent);
+              if (v) send("MessageUpdate", { id: v.id, channel, data: { pinned: v.pinned }, ...(v.pinned ? {} : { clear: ["Pinned"] }) });
+              break;
+            }
             case ITEM.REACT:
             case ITEM.UNREACT:
               send(item.type === ITEM.REACT ? "MessageReact" : "MessageUnreact", {
@@ -1374,10 +1545,25 @@ export class LocalServer {
       }),
     );
 
+    offs.push(
+      network.on("typing", (t) => {
+        send(t.typing ? "ChannelStartTyping" : "ChannelStopTyping", { id: channelId(t.conversation), user: userId(t.author) });
+      }),
+    );
+    offs.push(
+      network.on("acks", (changed) => {
+        for (const [conv, id] of changed) send("ChannelAck", { id: channelId(conv), user: userId(network.selfKey ?? ""), message_id: id });
+      }),
+    );
+
     ws.on("message", (data) => {
       try {
         const msg = JSON.parse(data.toString());
         if (msg.type === "Ping") send("Pong", { data: msg.data });
+        if (msg.type === "BeginTyping" || msg.type === "EndTyping") {
+          const conv = conversationOfChannel(String(msg.channel ?? ""));
+          if (conv) network.sendTyping(conv.id, msg.type === "BeginTyping");
+        }
       } catch {}
     });
     ws.on("close", () => offs.forEach((off) => off()));

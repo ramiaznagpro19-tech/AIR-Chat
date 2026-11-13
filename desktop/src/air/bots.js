@@ -19,6 +19,7 @@ export const HELP_OWNER = `Réglages (créateur du bot uniquement) :
 • !interdire mot / !autoriser mot — supprime les messages qui contiennent ce mot
 • !prefixe ? — change le préfixe des commandes`;
 
+const newToken = () => hex(randomBytes(24));
 const defaultConfig = () => ({ prefix: "!", commands: {}, auto: {}, banned: [] });
 const random = (list) => list[Math.floor(Math.random() * list.length)];
 
@@ -74,6 +75,18 @@ class Bots extends Emitter {
     };
   }
 
+  /** The bot a program connects as (token given in "Mes bots"). */
+  byToken(token) {
+    return token ? this.bots.find((b) => b.config.token && b.config.token === token) ?? null : null;
+  }
+
+  resetToken(key) {
+    const bot = this.get(key);
+    if (!bot) return;
+    bot.config.token = newToken();
+    this.save();
+  }
+
   isMine(key) {
     return this.bots.some((b) => b.publicKey === key);
   }
@@ -89,7 +102,7 @@ class Bots extends Emitter {
     if (r.error === "UsernameInvalid") return { error: "Nom invalide : 3 à 20 caractères (lettres minuscules, chiffres, . et _)." };
     if (r.error === "UsernameTaken") return { error: "Ce nom est déjà pris." };
     if (r.error) return { error: "Impossible de joindre le réseau. Réessayez." };
-    const bot = this.make(r.session.username, key, defaultConfig());
+    const bot = this.make(r.session.username, key, { ...defaultConfig(), token: newToken() });
     this.bots.push(bot);
     this.save();
     network.rememberBot(bot.publicKey, this.owner, bot.username);
@@ -284,7 +297,12 @@ class Bots extends Emitter {
     const raw = this.vault?.read();
     if (!raw) return [];
     try {
-      return (JSON.parse(raw).bots ?? []).map((b) => this.make(b.username, unhex(b.key), b.config ?? {}));
+      const list = (JSON.parse(raw).bots ?? []).map((b) => this.make(b.username, unhex(b.key), b.config ?? {}));
+      // bots made before code bots existed get their token now
+      let changed = false;
+      for (const b of list) if (!b.config.token) (b.config.token = newToken()), (changed = true);
+      if (changed) setTimeout(() => this.save(), 0);
+      return list;
     } catch {
       return [];
     }

@@ -117,12 +117,40 @@ fun AirBotsScreen(navController: NavController) {
 
             bots.forEach { bot ->
                 var menu by remember(bot.publicKey) { mutableStateOf(false) }
+                var picked by remember(bot.publicKey) { mutableStateOf<PickedImage?>(null) }
+                var displayName by remember(bot.publicKey) {
+                    mutableStateOf(AirNetwork.profiles.value[bot.publicKey]?.displayName ?: "")
+                }
+                var saving by remember(bot.publicKey) { mutableStateOf(false) }
                 var confirmDelete by remember(bot.publicKey) { mutableStateOf(false) }
                 val servers = AirBots.servers()
                 val joined = servers.filter { bot.publicKey in it.members }
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("${bot.username}  ·  BOT", fontWeight = FontWeight.Bold)
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                            AirImagePicker(image = picked, onPicked = { picked = it }, size = 56.dp)
+                            Text("${bot.username}  ·  BOT", fontWeight = FontWeight.Bold)
+                        }
+                        OutlinedTextField(
+                            value = displayName,
+                            onValueChange = { displayName = it.take(32) },
+                            label = { Text("Nom affiché du bot") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        OutlinedButton(
+                            enabled = !saving,
+                            onClick = {
+                                saving = true
+                                scope.launch {
+                                    val avatar = picked?.let { runCatching { uploadPickedImage(it, "avatars") }.getOrNull() }
+                                        ?: AirNetwork.profiles.value[bot.publicKey]?.avatar
+                                    AirNetwork.updateBotProfile(bot.publicKey, displayName, avatar)
+                                    message = "Profil de ${bot.username} enregistré."
+                                    saving = false
+                                }
+                            }
+                        ) { Text(if (saving) "Enregistrement…" else "Enregistrer le profil du bot") }
                         Text(
                             if (joined.isEmpty()) "Dans aucun serveur pour l'instant."
                             else "Serveurs : " + joined.joinToString(", ") { it.name },

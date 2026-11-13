@@ -1,11 +1,13 @@
 // AIR Chat accounts: username + password, same directory and key derivation as the Android app.
 import fs from "node:fs";
 import path from "node:path";
-import { hex, pbkdf2Seed, privateKeyFromSeed, publicKey, unhex } from "./crypto.js";
+import { b64, hex, open as openSealed, pbkdf2Seed, privateKeyFromSeed, publicKey, randomBytes, seal, unb64, unhex } from "./crypto.js";
 import { createEvent, firstTag, relays } from "./nostr.js";
 import { Emitter } from "./emitter.js";
 
 export const USERNAME_KIND = 30420;
+/** The account key encrypted with the current password, after a password change. */
+export const KEYSTORE_KIND = 30421;
 
 /** Encrypted file storage on this computer. */
 export class Vault {
@@ -192,10 +194,67 @@ class Account extends Emitter {
     return { session: { username: name, privateKey: key, publicKey: pub } };
   }
 
+  keystoreTag(u) {
+    return `${this.USERNAME_TOPIC}:keystore:${this.normalize(u)}`;
+  }
+
+  async latestKeystore(username, owner) {
+    const tag = this.keystoreTag(username);
+    const events = (await relays.query([{ kinds: [KEYSTORE_KIND], authors: [owner], "#d": [tag] }])).filter(
+      (e) => e.kind === KEYSTORE_KIND && e.pubkey === owner && firstTag(e, "d") === tag,
+    );
+    events.sort((a, b) => b.created_at - a.created_at || (a.id < b.id ? 1 : -1));
+    return events[0] ?? null;
+  }
+
+  /** The account key for this password, or null when the password is wrong. */
+  async keyFor(username, password, owner) {
+    const name = this.normalize(username);
+    const keystore = await this.latestKeystore(name, owner);
+    if (keystore) {
+      try {
+        const j = JSON.parse(keystore.content);
+        const k = await pbkdf2Seed(password, `AIR Chat keystore|${name}|${j.salt}`);
+        const key = openSealed(k, unb64(j.data), `AIR Chat keystore|${name}`);
+        return hex(publicKey(key)) === owner ? key : null;
+      } catch {
+        return null;
+      }
+    }
+    const key = await this.deriveKey(name, password);
+    return hex(publicKey(key)) === owner ? key : null;
+  }
+
+  async changePassword(current, next) {
+    const s = this.session;
+    if (!s) return { error: "NetworkError" };
+    if (!this.passwordProblems(next).isValid) return { error: "PasswordInvalid" };
+    let key;
+    try {
+      key = await this.keyFor(s.username, current, s.publicKey);
+    } catch {
+      return { error: "NetworkError" };
+    }
+    if (!key) return { error: "WrongPassword" };
+    const salt = b64(randomBytes(16));
+    const k = await pbkdf2Seed(next, `AIR Chat keystore|${s.username}|${salt}`);
+    const data = b64(seal(k, key, `AIR Chat keystore|${s.username}`));
+    const event = createEvent(
+      key,
+      KEYSTORE_KIND,
+      [
+        ["d", this.keystoreTag(s.username)],
+        ["t", "air-chat-keystore"],
+      ],
+      JSON.stringify({ v: 1, salt, data }),
+    );
+    if (!(await relays.publish(event))) return { error: "NetworkError" };
+    return { ok: true };
+  }
+
   async login(username, password) {
     const name = this.normalize(username);
     if (!this.isUsernameValid(name)) return { error: "UsernameInvalid" };
-    const key = await this.deriveKey(name, password);
     let owner;
     try {
       owner = await this.ownerOf(name);
@@ -204,7 +263,13 @@ class Account extends Emitter {
     }
     if (!owner && relays.connectedCount === 0) return { error: "NetworkError" };
     if (!owner) return { error: "AccountNotFound" };
-    if (owner !== hex(publicKey(key))) return { error: "WrongPassword" };
+    let key;
+    try {
+      key = await this.keyFor(name, password, owner);
+    } catch {
+      return { error: "NetworkError" };
+    }
+    if (!key) return { error: "WrongPassword" };
     this.save(name, key);
     return { session: this.session };
   }

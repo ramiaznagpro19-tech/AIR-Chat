@@ -44,6 +44,8 @@ data class Message(
             embeds = partial.embeds ?: embeds,
             mentions = partial.mentions ?: mentions,
             masquerade = partial.masquerade ?: masquerade,
+            pinned = partial.pinned ?: pinned,
+            system = partial.system ?: system,
             type = partial.type ?: type,
             tail = partial.tail ?: tail
         )

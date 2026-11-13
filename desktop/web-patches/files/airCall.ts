@@ -397,11 +397,9 @@ class AirCall {
   }
 
   notify(text: string) {
-    try {
-      if (document.hidden && Notification.permission === "granted") new Notification("AIR Chat", { body: text });
-    } catch {
-      // ignore
-    }
+    // AIR Chat for PC shows no system notifications: the call screen is enough
+    document.title = text;
+    setTimeout(() => (document.title = "AIR Chat"), 15_000);
   }
 
   toast(text: string) {

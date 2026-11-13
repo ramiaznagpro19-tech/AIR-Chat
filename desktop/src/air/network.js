@@ -37,6 +37,8 @@ export const ITEM = {
   DELETE: "delete",
   REACT: "react",
   UNREACT: "unreact",
+  PIN: "pin",
+  UNPIN: "unpin",
   OP: "op",
   JOIN: "join",
 };
@@ -931,6 +933,34 @@ class Network extends Emitter {
     if ((this.acks.get(conversationId) ?? "") >= messageId) return;
     this.acks.set(conversationId, messageId);
     this.save();
+    this.emit("acks", [[conversationId, messageId]]);
+    // read state goes to my other devices too
+    clearTimeout(this.ackTimer);
+    this.ackTimer = setTimeout(() => this.sendAcksToMyDevices(), 3000);
+  }
+
+  sendAcksToMyDevices() {
+    if (this.selfKey) this.relayDeliver(this.selfKey, { t: "acks", acks: Object.fromEntries(this.acks) });
+  }
+
+  /** "X is typing": only to people connected right now, never stored. */
+  sendTyping(conversationId, typing) {
+    const c = this.conversations.get(conversationId);
+    if (!c) return;
+    const targets = official.isOpen(conversationId) ? new Set([...this.peers.values()].map((p) => p.publicKey)) : c.members;
+    // through the relays too when there is no direct connection (small conversations, at most every 3 s)
+    this.typingRelayAt ??= new Map();
+    const now = Date.now();
+    const viaRelay = !official.isOpen(conversationId) && c.members.size <= 12 && (!typing || now - (this.typingRelayAt.get(conversationId) ?? 0) > 3_000);
+    if (viaRelay && typing) this.typingRelayAt.set(conversationId, now);
+    if (!typing) this.typingRelayAt.delete(conversationId);
+    const msg = { t: "typing", conv: conversationId, on: typing };
+    for (const key of targets) {
+      if (key === this.selfKey) continue;
+      const open = this.openPeersOf(key);
+      if (open.length) for (const p of open) this.send(p, msg);
+      else if (viaRelay) this.relayDeliver(key, msg);
+    }
   }
 
   getSetting(key) {
@@ -1000,6 +1030,7 @@ class Network extends Emitter {
     self.syncedAt = now;
     self.synced.clear();
     this.sendContactsToMyDevices();
+    this.sendAcksToMyDevices();
     this.sendProfile(self);
     for (const c of this.conversations.values()) this.sendConversation(self, c);
     for (const c of this.conversations.values()) this.sendSync(self, c.id);
@@ -1264,6 +1295,27 @@ class Network extends Emitter {
 
   onData(peer, j) {
     switch (j.t) {
+      case "typing": {
+        const conv = String(j.conv ?? "");
+        if (!this.conversationFor(peer.publicKey, conv)) return;
+        this.emit("typing", { conversation: conv, author: peer.publicKey, typing: j.on !== false });
+        return;
+      }
+      case "acks": {
+        if (peer.publicKey !== this.selfKey || !j.acks || typeof j.acks !== "object") return;
+        const changed = [];
+        for (const [conv, id] of Object.entries(j.acks)) {
+          if (typeof id === "string" && id.length === 26 && (this.acks.get(conv) ?? "") < id) {
+            this.acks.set(conv, id);
+            changed.push([conv, id]);
+          }
+        }
+        if (changed.length) {
+          this.save();
+          this.emit("acks", changed);
+        }
+        return;
+      }
       case "contacts":
         if (peer.publicKey !== this.selfKey || !Array.isArray(j.list)) return;
         {

@@ -155,6 +155,82 @@ object AirAccount {
 
     private fun usernameTag(username: String) = "$USERNAME_TOPIC:${normalize(username)}"
 
+    // ---- Changing the password ----
+    // The account key never changes. After a password change, the key is kept on the relays
+    // encrypted with the new password (signed by the account), and only that password opens it.
+
+    const val KEYSTORE_KIND = 30421
+
+    private fun keystoreTag(username: String) = "$USERNAME_TOPIC:keystore:${normalize(username)}"
+
+    private fun keystoreKey(username: String, password: String, salt: String): ByteArray {
+        val spec = PBEKeySpec(
+            password.toCharArray(),
+            "AIR Chat keystore|${normalize(username)}|$salt".toByteArray(Charsets.UTF_8),
+            PBKDF2_ITERATIONS,
+            256
+        )
+        return SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256").generateSecret(spec).encoded
+    }
+
+    private suspend fun latestKeystore(username: String, owner: String): NostrEvent? {
+        val tag = keystoreTag(username)
+        return NostrRelayPool.query(
+            listOf(
+                JSONObject()
+                    .put("kinds", org.json.JSONArray().put(KEYSTORE_KIND))
+                    .put("authors", org.json.JSONArray().put(owner))
+                    .put("#d", org.json.JSONArray().put(tag))
+            )
+        ).filter { it.kind == KEYSTORE_KIND && it.pubkey == owner && it.firstTag("d") == tag }
+            .maxWithOrNull(compareBy<NostrEvent> { it.createdAt }.thenBy { it.id })
+    }
+
+    /** The account key for this password, or null when the password is wrong. */
+    private suspend fun keyFor(username: String, password: String, owner: String): ByteArray? {
+        val keystore = latestKeystore(username, owner)
+        if (keystore != null) {
+            return runCatching {
+                val json = JSONObject(keystore.content)
+                val salt = json.getString("salt")
+                val key = chat.stoat.e2ee.AirCrypto.open(
+                    keystoreKey(username, password, salt),
+                    chat.stoat.e2ee.AirCrypto.unb64(json.getString("data")),
+                    "AIR Chat keystore|${normalize(username)}"
+                )
+                key.takeIf { Secp256k1.hex(Secp256k1.publicKey(it)) == owner }
+            }.getOrNull()
+        }
+        return deriveKey(username, password).takeIf { Secp256k1.hex(Secp256k1.publicKey(it)) == owner }
+    }
+
+    sealed class ChangeResult {
+        data object Success : ChangeResult()
+        data object WrongPassword : ChangeResult()
+        data object PasswordInvalid : ChangeResult()
+        data object NetworkError : ChangeResult()
+    }
+
+    suspend fun changePassword(current: String, new: String): ChangeResult = withContext(Dispatchers.Default) {
+        val s = _session.value ?: return@withContext ChangeResult.NetworkError
+        if (!passwordProblems(new).isValid) return@withContext ChangeResult.PasswordInvalid
+        val key = try {
+            keyFor(s.username, current, s.publicKey)
+        } catch (e: Exception) {
+            return@withContext ChangeResult.NetworkError
+        } ?: return@withContext ChangeResult.WrongPassword
+        val salt = chat.stoat.e2ee.AirCrypto.b64(chat.stoat.e2ee.AirCrypto.randomBytes(16))
+        val sealed = chat.stoat.e2ee.AirCrypto.seal(keystoreKey(s.username, new, salt), key, "AIR Chat keystore|${s.username}")
+        val event = NostrEvent.create(
+            key,
+            KEYSTORE_KIND,
+            listOf(listOf("d", keystoreTag(s.username)), listOf("t", "air-chat-keystore")),
+            JSONObject().put("v", 1).put("salt", salt).put("data", chat.stoat.e2ee.AirCrypto.b64(sealed)).toString()
+        )
+        if (!NostrRelayPool.publish(event)) return@withContext ChangeResult.NetworkError
+        ChangeResult.Success
+    }
+
     /** Owner (public key) of a username, or null when it is free. */
     suspend fun ownerOf(username: String): String? {
         val events = NostrRelayPool.query(
@@ -230,22 +306,22 @@ object AirAccount {
     suspend fun login(username: String, password: String): Result = withContext(Dispatchers.Default) {
         val name = normalize(username)
         if (!isUsernameValid(name)) return@withContext Result.UsernameInvalid
-        val key = deriveKey(name, password)
-        val session = Session(name, key)
         val owner = try {
             ownerOf(name)
         } catch (e: Exception) {
             return@withContext Result.NetworkError
         }
-        when {
-            owner == null && NostrRelayPool.connectedCount.value == 0 -> Result.NetworkError
-            owner == null -> Result.AccountNotFound
-            owner != session.publicKey -> Result.WrongPassword
-            else -> {
-                saveSession(session)
-                Result.Success(session)
-            }
+        if (owner == null) {
+            return@withContext if (NostrRelayPool.connectedCount.value == 0) Result.NetworkError else Result.AccountNotFound
         }
+        val key = try {
+            keyFor(name, password, owner)
+        } catch (e: Exception) {
+            return@withContext Result.NetworkError
+        } ?: return@withContext Result.WrongPassword
+        val session = Session(name, key)
+        saveSession(session)
+        Result.Success(session)
     }
 
     fun logout() {

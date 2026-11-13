@@ -105,6 +105,9 @@ data class AirItem(
         const val DELETE = "delete"
         const val REACT = "react"
         const val UNREACT = "unreact"
+        /** Pin / unpin a message (parent = the message) */
+        const val PIN = "pin"
+        const val UNPIN = "unpin"
         /** Server administration (roles, bans, emojis, settings…), see [AirServers]. */
         const val OP = "op"
         /** "X joined the server" */
@@ -161,6 +164,36 @@ object AirNetwork {
     private val _items = MutableStateFlow<Map<String, AirItem>>(emptyMap())
     val items: StateFlow<Map<String, AirItem>> = _items.asStateFlow()
 
+    /** "X is typing" (conversation, person, typing or stopped), never stored. */
+    data class Typing(val conversation: String, val author: String, val typing: Boolean)
+
+    val typing = kotlinx.coroutines.flow.MutableSharedFlow<Typing>(extraBufferCapacity = 64)
+
+    fun sendTyping(conversationId: String, isTyping: Boolean) {
+        val conversation = _conversations.value[conversationId] ?: return
+        val msg = JSONObject().put("t", "typing").put("conv", conversationId).put("on", isTyping)
+        val targets = if (AirOfficial.isOpen(conversationId)) peers.values.map { it.publicKey }.toSet() else conversation.members
+        val now = System.currentTimeMillis()
+        // through the relays too when there is no direct connection (small conversations, at most every 3 s)
+        val viaRelay = !AirOfficial.isOpen(conversationId) && conversation.members.size <= 12 &&
+                (!isTyping || now - (typingRelayAt[conversationId] ?: 0L) > 3_000)
+        if (viaRelay && isTyping) typingRelayAt[conversationId] = now
+        if (!isTyping) typingRelayAt.remove(conversationId)
+        targets.filter { it != selfKey }.forEach { key ->
+            val open = openPeersOf(key)
+            if (open.isNotEmpty()) open.forEach { send(it, msg) }
+            else if (viaRelay) relayEndpoint(key).deliver(msg)
+        }
+    }
+
+    private val typingRelayAt = java.util.concurrent.ConcurrentHashMap<String, Long>()
+
+    /** Read state goes to my other devices too. */
+    private fun sendAcksToMyDevices() {
+        val me = selfKey ?: return
+        relayEndpoint(me).deliver(JSONObject().put("t", "acks").put("acks", JSONObject(_acks.value)))
+    }
+
     /** Items as they arrive (used by the bots hosted on this device). */
     val newItems = kotlinx.coroutines.flow.MutableSharedFlow<List<AirItem>>(extraBufferCapacity = 256)
 
@@ -213,6 +246,7 @@ object AirNetwork {
         self.syncedAt = now
         self.syncedConversations.clear()
         sendContactsToMyDevices()
+        sendAcksToMyDevices()
         sendProfile(self)
         val all = _conversations.value.values.toList()
         all.forEach { sendConversation(self, it) }
@@ -911,7 +945,14 @@ object AirNetwork {
             _acks.value = _acks.value + (conversationId to messageId)
             save()
         }
+        ackSyncJob?.cancel()
+        ackSyncJob = scope.launch {
+            delay(3_000)
+            sendAcksToMyDevices()
+        }
     }
+
+    private var ackSyncJob: Job? = null
 
     // ---- Local settings (synced settings of the interface, kept on this device) ----
 
@@ -1304,6 +1345,28 @@ object AirNetwork {
 
     private fun onData(peer: Endpoint, json: JSONObject) {
         when (json.optString("t")) {
+            "typing" -> {
+                val conv = json.optString("conv")
+                if (conversationFor(peer.publicKey, conv) == null) return
+                typing.tryEmit(Typing(conv, peer.publicKey, json.optBoolean("on", true)))
+            }
+
+            "acks" -> {
+                if (peer.publicKey != selfKey) return
+                val incoming = json.optJSONObject("acks") ?: return
+                synchronized(lock) {
+                    var next = _acks.value
+                    incoming.keys().forEach { conv ->
+                        val id = incoming.optString(conv)
+                        if (id.length == 26 && (next[conv] ?: "") < id) next = next + (conv to id)
+                    }
+                    if (next != _acks.value) {
+                        _acks.value = next
+                        save()
+                    }
+                }
+            }
+
             "contacts" -> {
                 if (peer.publicKey != selfKey) return
                 val list = json.optJSONArray("list") ?: return

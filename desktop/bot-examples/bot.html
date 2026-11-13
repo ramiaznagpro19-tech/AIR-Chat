@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <title>Bot AIR Chat (HTML)</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #111; color: #eee; max-width: 720px; margin: 40px auto; padding: 0 16px; }
+    input, button { padding: 10px; border-radius: 10px; border: 1px solid #444; background: #1c1c22; color: #eee; }
+    #log { white-space: pre-wrap; background: #1a1a1f; border-radius: 12px; padding: 12px; min-height: 200px; }
+  </style>
+</head>
+<body>
+  <h1>Bot AIR Chat en HTML</h1>
+  <p>Ouvrez cette page sur le PC où AIR Chat est ouvert. Collez le jeton du bot (Paramètres &gt; Mes bots) puis démarrez.
+     Le bot peut lire et écrire des messages, mais pas modifier les serveurs ni l'application.</p>
+  <input id="token" placeholder="Jeton du bot" size="50"> <button id="start">Démarrer</button>
+  <h3>Journal</h3>
+  <div id="log"></div>
+  <script>
+    const API = "http://127.0.0.1:47821/api";
+    const log = (t) => (document.getElementById("log").textContent += t + "\n");
+
+    document.getElementById("start").onclick = async () => {
+      const token = document.getElementById("token").value.trim();
+      const headers = { "x-bot-token": token, "Content-Type": "application/json" };
+      const me = await (await fetch(API + "/users/@me", { headers })).json();
+      log("Connecté en tant que " + me.username);
+      const send = (channel, content, replyTo) =>
+        fetch(`${API}/channels/${channel}/messages`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ content, replies: replyTo ? [{ id: replyTo, mention: false }] : [] }),
+        });
+
+      const ws = new WebSocket("ws://127.0.0.1:47821/events");
+      ws.onopen = () => {
+        ws.send(JSON.stringify({ type: "Authenticate", token }));
+        setInterval(() => ws.send(JSON.stringify({ type: "Ping", data: 0 })), 20000);
+      };
+      ws.onmessage = (e) => {
+        const event = JSON.parse(e.data);
+        if (event.type !== "Message" || event.author === me._id) return;
+        log("Message : " + event.content);
+        if (event.content === "!bonjour") send(event.channel, "Bonjour depuis une page HTML 🌐", event._id);
+        if (event.content.startsWith("!echo ")) send(event.channel, event.content.slice(6));
+      };
+    };
+  </script>
+</body>
+</html>

@@ -398,7 +398,8 @@ fun UserButtons(
                         }
                     )
 
-                    DropdownMenuItem(
+                    // AIR Chat: no reporting (there is no one to receive reports)
+                    if (false) DropdownMenuItem(
                         text = {
                             Text(
                                 stringResource(Res.string.user_info_sheet_report),

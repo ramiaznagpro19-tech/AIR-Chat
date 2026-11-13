@@ -221,6 +221,18 @@ class AirBackendTest {
             }
         }
 
+        // Changing the password keeps the same account
+        step("change password") { chat.stoat.api.routes.account.changePassword("efgh456!?", password) }
+        step("new password opens the account") {
+            val a = negotiateAuthentication(username, "efgh456!?")
+            check(a.error == null) { "login error: ${a.error?.type}" }
+        }
+        step("old password no longer works") {
+            val a = negotiateAuthentication(username, password)
+            check(a.error != null) { "old password still works" }
+        }
+        step("logged back with the new password") { negotiateAuthentication(username, "efgh456!?").firstUserHints!!.let { StoatAPI.loginAs(it.token) } }
+
         println("AIRTEST SUMMARY failures=${failures.size}")
         failures.forEach { println("AIRTEST FAILURE $it") }
         if (failures.isNotEmpty()) fail(failures.joinToString("\n"))

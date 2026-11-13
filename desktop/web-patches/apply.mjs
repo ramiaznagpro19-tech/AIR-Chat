@@ -231,7 +231,7 @@ patch("components/app/interface/settings/user/bots/MyBots.tsx", [
         onClick={() => {}}
         description={
           <span style={{ "white-space": "pre-line" }}>
-            {"Un bot est hébergé par cet ordinateur : il répond tant qu'AIR Chat est ouvert ici. Ajoutez-le à un serveur depuis sa page (Inviter le bot), puis écrivez !aide dans un salon.\\n\\nPour tout le monde : !aide, !ping, !info, !des, !choisir a | b, et vos commandes.\\n\\nRéglages (vous uniquement) :\\n• !commande nom réponse · !supprimer nom\\n• !bienvenue texte ({user}) · !bienvenue off\\n• !auto mot = réponse · !auto-supprimer mot\\n• !interdire mot · !autoriser mot\\n• !prefixe ?"}
+            {"Un bot est hébergé par cet ordinateur : il répond tant qu'AIR Chat est ouvert ici. Ajoutez-le à un serveur depuis sa page (Inviter le bot), puis écrivez !aide dans un salon.\\n\\nPour tout le monde : !aide, !ping, !info, !des, !choisir a | b, et vos commandes.\\n\\nRéglages (vous uniquement) :\\n• !commande nom réponse · !supprimer nom\\n• !bienvenue texte ({user}) · !bienvenue off\\n• !auto mot = réponse · !auto-supprimer mot\\n• !interdire mot · !autoriser mot\\n• !prefixe ?\\n\\nBot en code (Python ou page HTML) : copiez le jeton sur la page du bot. Le programme se connecte à http://127.0.0.1:47821/api avec l'en-tête x-bot-token. Il peut lire, écrire, répondre et réagir, mais ne peut jamais modifier les serveurs, les salons, les rôles ni l'application. Exemples : bot-examples (bot.py, bot.html) dans les téléchargements d'AIR Chat PC."}
           </span>
         }
       >
@@ -243,9 +243,26 @@ patch("components/app/interface/settings/user/bots/MyBots.tsx", [
 // 14. Account: an AIR Chat account is a username and a password (no email, no MFA, the
 // username can never change), so only what applies is shown
 patch("components/app/interface/settings/user/Account.tsx", [
-  ["      <MultiFactorAuth />\n      <ManageAccount />\n", "      <span style={{ opacity: 0.8 }}>\n        Votre compte AIR Chat est votre nom d'utilisateur et votre mot de passe. Le nom\n        d'utilisateur est unique et ne change jamais. Connectez-vous avec les mêmes sur tous\n        vos appareils (téléphone, PC) : vos serveurs, messages et amis s'y synchronisent.\n      </span>\n"],
+  ["      <MultiFactorAuth />\n      <ManageAccount />\n", "      <span style={{ opacity: 0.8 }}>\n        Votre compte AIR Chat est votre nom d'utilisateur et votre mot de passe. Le nom\n        d'utilisateur est unique et ne change jamais ; le mot de passe peut être changé. Connectez-vous avec les mêmes sur tous\n        vos appareils (téléphone, PC) : vos serveurs, messages et amis s'y synchronisent.\n      </span>\n"],
   [/<CategoryButton\s+action="chevron"\s+onClick=\{\(\) => \{\s*props\.onClose\?\.\(\);\s*stow\(\);[\s\S]*?<\/CategoryButton>/, ""],
   [/<CategoryButton\s+action="chevron"\s+onClick=\{\(\) =>\s*openModal\(\{\s*type: "edit_email",[\s\S]*?<\/CategoryButton>/, ""],
-  [/<CategoryButton\s+action="chevron"\s+onClick=\{\(\) =>\s*openModal\(\{\s*type: "edit_password",[\s\S]*?<\/CategoryButton>/, ""],
   [/<CategoryButton\s+action="chevron"\s+onClick=\{\(\) =>\s*openModal\(\{\s*type: "edit_username",\s*client: client\(\),\s*\}\)\s*\}/, "<CategoryButton\n        onClick={() => {}}"],
+]);
+
+// 15. No reporting (there is no one to receive reports), no push notifications on PC
+patch("components/app/menus/MessageContextMenu.tsx", [
+  [/<ContextMenuButton icon=\{MdReport\} onClick=\{report\} destructive>\s*<Trans>Report message<\/Trans>\s*<\/ContextMenuButton>/, ""],
+]);
+patch("components/app/menus/ServerContextMenu.tsx", [
+  [/<ContextMenuButton icon=\{MdReport\} onClick=\{report\} destructive>\s*<Trans>Report server<\/Trans>\s*<\/ContextMenuButton>/, ""],
+]);
+patch("components/app/menus/UserContextMenu.tsx", [
+  [/<Show when=\{!props\.user\.privileged\}>\s*<ContextMenuButton\s*symbol=\{\s*<IconSlot>\s*<Symbol size=\{16\}>report<\/Symbol>[\s\S]*?<Trans>Report user<\/Trans>\s*<\/ContextMenuButton>\s*<\/Show>/, ""],
+]);
+patch("components/client/NotificationsController.ts", [
+  ['const supportsNotification = "Notification" in window;', "// AIR Chat for PC: no notifications\n  const supportsNotification = false;"],
+  ["async function setUpServiceWorkerSubscription(client: Client) {", "async function setUpServiceWorkerSubscription(client: Client) {\n  if (client) return;"],
+]);
+patch("components/app/interface/settings/UserSettings.tsx", [
+  [/\{\s*id: "notifications",\s*icon: <MdNotifications \{\.\.\.iconSize\(20\)\} \/>,\s*title: <Trans>Notifications<\/Trans>,\s*\},/, ""],
 ]);

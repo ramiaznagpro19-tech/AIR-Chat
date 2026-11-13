@@ -53,6 +53,8 @@ import chat.stoat.shared.resources.copied
 import chat.stoat.shared.resources.ic_add_reaction_24dp
 import chat.stoat.shared.resources.ic_content_copy_24dp
 import chat.stoat.shared.resources.ic_delete_24dp
+import chat.stoat.shared.resources.ic_keep_24dp
+import chat.stoat.shared.resources.ic_keep_off_24dp
 import chat.stoat.shared.resources.ic_edit_24dp
 import chat.stoat.shared.resources.ic_identifier_copy_24dp
 import chat.stoat.shared.resources.ic_ios_share_24dp
@@ -489,6 +491,33 @@ fun MessageContextSheet(
             }
         )
 
+        // AIR Chat: pin / unpin (anyone in a private conversation, moderators in a server)
+        val pinChannel = message.channel?.let { StoatAPI.channelCache[it] }
+        if (message.system == null && pinChannel != null && (pinChannel.server == null ||
+                    Roles.permissionFor(pinChannel, StoatAPI.userCache[StoatAPI.selfId]) has PermissionBit.ManageMessages)
+        ) {
+            SheetButton(
+                leadingContent = {
+                    Icon(
+                        painter = painterResource(if (message.pinned == true) Res.drawable.ic_keep_off_24dp else Res.drawable.ic_keep_24dp),
+                        contentDescription = null
+                    )
+                },
+                headlineContent = {
+                    Text(text = if (message.pinned == true) "Désépingler" else "Épingler")
+                },
+                onClick = {
+                    coroutineScope.launch {
+                        runCatching {
+                            if (message.pinned == true) chat.stoat.api.routes.channel.unpinMessage(message.channel!!, message.id!!)
+                            else chat.stoat.api.routes.channel.pinMessage(message.channel!!, message.id!!)
+                        }
+                        onHideSheet()
+                    }
+                }
+            )
+        }
+
         if (
             (message.channel?.let {
                 val channel = StoatAPI.channelCache[it] ?: return@let null
@@ -517,7 +546,8 @@ fun MessageContextSheet(
             )
         }
 
-        if (message.author != StoatAPI.selfId) {
+        // AIR Chat: no reporting (there is no one to receive reports)
+        if (false && message.author != StoatAPI.selfId) {
             SheetButton(
                 leadingContent = {
                     Icon(

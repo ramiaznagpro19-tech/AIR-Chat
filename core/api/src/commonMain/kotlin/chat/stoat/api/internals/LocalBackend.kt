@@ -11,4 +11,8 @@ package chat.stoat.api.internals
 object LocalBackend {
     @Volatile
     var realtime: (suspend (token: String, emit: suspend (String) -> Unit) -> Unit)? = null
+
+    /** Frames sent by the app on the realtime connection (typing...), when [realtime] is set. */
+    @Volatile
+    var send: ((String) -> Unit)? = null
 }

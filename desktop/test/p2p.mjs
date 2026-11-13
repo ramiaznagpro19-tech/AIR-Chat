@@ -29,9 +29,10 @@ try {
   await sleep(2500);
   const stamp = Date.now().toString().slice(-8);
   const a = "pa" + stamp, b = "pb" + stamp;
+  const tokens = {};
   for (const [port, name] of [[47911, a], [47912, b]]) {
     await call(port, "POST", "/auth/account/create", { email: name, password: "abcd123!?" });
-    await call(port, "POST", "/auth/session/login", { email: name, password: "abcd123!?" });
+    tokens[port] = (await call(port, "POST", "/auth/session/login", { email: name, password: "abcd123!?" })).token;
   }
   check("accounts", true, `${a} ${b}`);
   const friend = await call(47912, "POST", "/users/friend", { username: a });
@@ -46,6 +47,26 @@ try {
     } catch {}
   }
   check("message delivered peer to peer", got.includes("Bonjour du PC B"), JSON.stringify(got));
+  {
+    // "X est en train d'écrire"
+    let typing = false;
+    const wa = new WebSocket("ws://127.0.0.1:47911/events");
+    wa.onopen = () => wa.send(JSON.stringify({ type: "Authenticate", token: tokens[47911] }));
+    wa.onmessage = (e) => {
+      const ev = JSON.parse(e.data);
+      if (ev.type === "ChannelStartTyping" && ev.id === dm._id) typing = true;
+    };
+    const wb = new WebSocket("ws://127.0.0.1:47912/events");
+    wb.onopen = () => wb.send(JSON.stringify({ type: "Authenticate", token: tokens[47912] }));
+    await sleep(1500);
+    for (let i = 0; i < 10 && !typing; i++) {
+      wb.send(JSON.stringify({ type: "BeginTyping", channel: dm._id }));
+      await sleep(1500);
+    }
+    check("typing indicator", typing);
+    wa.close();
+    wb.close();
+  }
   const server = await call(47911, "POST", "/servers/create", { name: "Serveur PC" });
   check("server created", !!server.server?._id);
   let invites = [];
@@ -82,6 +103,31 @@ try {
       await waitFor(47911, "Commande !regles");
       await call(47912, "POST", `/channels/${channel}/messages`, { content: "!regles" });
       check("custom command", !!(await waitFor(47912, "Soyez gentils")));
+      // a bot program (like bot.py / bot.html) with its token
+      const owned = await call(47911, "GET", "/bots/@me");
+      const token = owned.bots.find((x) => x._id === bot._id)?.token;
+      check("bot has a token", !!token && token.length >= 32);
+      const botCall = async (method, p, body) => {
+        const r = await fetch(`http://127.0.0.1:47911/api${p}`, { method, headers: { "x-bot-token": token }, body: body ? JSON.stringify(body) : undefined });
+        return { status: r.status, body: await r.json().catch(() => null) };
+      };
+      check("code bot: who am I", (await botCall("GET", "/users/@me")).body?.username === "bot" + stamp);
+      const ws = new WebSocket("ws://127.0.0.1:47911/events");
+      let ready = false;
+      ws.onopen = () => ws.send(JSON.stringify({ type: "Authenticate", token }));
+      ws.onmessage = (e) => {
+        const ev = JSON.parse(e.data);
+        if (ev.type === "Ready") ready = true;
+        if (ev.type === "Message" && ev.content === "!code") botCall("POST", `/channels/${ev.channel}/messages`, { content: "réponse du programme", replies: [{ id: ev._id, mention: false }] });
+      };
+      await sleep(1500);
+      check("code bot: realtime ready", ready);
+      await call(47912, "POST", `/channels/${channel}/messages`, { content: "!code" });
+      check("code bot answers", !!(await waitFor(47912, "réponse du programme")));
+      check("code bot cannot change the server", (await botCall("PATCH", `/servers/${server.server._id}`, { name: "piraté" })).status === 403);
+      check("code bot cannot create channels", (await botCall("POST", `/servers/${server.server._id}/channels`, { name: "x" })).status === 403);
+      check("code bot cannot ban", (await botCall("PUT", `/servers/${server.server._id}/bans/${bot._id}`, {})).status === 403);
+      ws.close();
       let users = await call(47912, "GET", `/users/${bot._id}`);
       for (let i = 0; i < 30 && !(users.bot && users.username === "bot" + stamp); i++) {
         await sleep(1500);

@@ -1154,6 +1154,10 @@ object RealtimeSocket {
     }
 
     suspend fun beginTyping(channelId: String) {
+        chat.stoat.api.internals.LocalBackend.send?.let {
+            it(StoatJson.encodeToString(BeginTypingFrame.serializer(), BeginTypingFrame("BeginTyping", channelId)))
+            return
+        }
         if (disconnectionState != DisconnectionState.Connected) return
 
         val beginTypingFrame = BeginTypingFrame("BeginTyping", channelId)
@@ -1166,6 +1170,10 @@ object RealtimeSocket {
     }
 
     suspend fun endTyping(channelId: String) {
+        chat.stoat.api.internals.LocalBackend.send?.let {
+            it(StoatJson.encodeToString(EndTypingFrame.serializer(), EndTypingFrame("EndTyping", channelId)))
+            return
+        }
         if (disconnectionState != DisconnectionState.Connected) return
 
         val endTypingFrame = EndTypingFrame("EndTyping", channelId)

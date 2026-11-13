@@ -348,23 +348,6 @@ fun ServerContextSheet(
         }
 
         if (server.owner != StoatAPI.selfId) {
-            SheetButton(
-                leadingContent = {
-                    Icon(
-                        painter = painterResource(Res.drawable.ic_report_24dp),
-                        contentDescription = null
-                    )
-                },
-                headlineContent = {
-                    Text(
-                        text = stringResource(Res.string.server_context_sheet_actions_report),
-                    )
-                },
-                dangerous = true,
-                onClick = {
-                    onReportServer()
-                }
-            )
 
             SheetButton(
                 leadingContent = {

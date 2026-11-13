@@ -57,6 +57,23 @@ try {
   await call(47922, "POST", `/channels/${dm._id}/messages`, { content: "écrit sur le PC" });
   check("PC -> phone", !!(await until(() => call(47921, "GET", `/channels/${dm._id}/messages?limit=10`).then((m) => m.some((x) => x.content === "écrit sur le PC")))));
   check("the friend gets it too", !!(await until(() => call(47923, "GET", `/channels/${dm._id}/messages?limit=10`).then((m) => m.some((x) => x.content === "écrit sur le PC")))));
+  // pinned message, seen by the friend
+  const msgs = await call(47921, "GET", `/channels/${dm._id}/messages?limit=10`);
+  const target = msgs.find((m) => m.content === "écrit sur le téléphone");
+  await call(47921, "POST", `/channels/${dm._id}/messages/${target._id}/pin`);
+  check("pinned message seen by the friend", !!(await until(() => call(47923, "POST", `/channels/${dm._id}/search`, { pinned: true }).then((r) => r.some((m) => m._id === target._id && m.pinned)))));
+  // read on the phone = read on the PC
+  const last = msgs[0]._id;
+  await call(47921, "PUT", `/channels/${dm._id}/ack/${last}`);
+  check("read state synced to my other device", !!(await until(() => call(47922, "GET", "/sync/unreads").then((u) => u.some((x) => x.last_id === last)))));
+  // password change: same account, the new password works, the old one does not
+  await call(47921, "PATCH", "/auth/account/change/password", { current_password: "abcd123!?", password: "efgh456!?" });
+  const relogin = await fetch("http://127.0.0.1:47923/api/auth/session/login", { method: "POST", body: JSON.stringify({ email: me, password: "abcd123!?" }) });
+  check("old password refused", relogin.status === 401);
+  await call(47923, "POST", "/auth/session/logout").catch(() => {});
+  const fresh = await call(47923, "POST", "/auth/session/login", { email: me, password: "efgh456!?" }).catch((e) => ({ error: String(e) }));
+  check("new password opens the same account", fresh.user_id === (await call(47921, "GET", "/users/@me"))._id, JSON.stringify(fresh).slice(0, 120));
+  await call(47923, "POST", "/auth/session/login", { email: friend, password: "abcd123!?" });
   const s2 = await call(47922, "POST", "/servers/create", { name: "Serveur du PC" });
   check("server created on PC appears on phone", !!(await until(() => call(47921, "GET", `/servers/${s2.server._id}`).then((s) => s.name === "Serveur du PC"))));
 } catch (e) {

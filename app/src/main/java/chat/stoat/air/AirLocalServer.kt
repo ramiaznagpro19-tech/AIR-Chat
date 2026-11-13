@@ -60,6 +60,18 @@ object AirLocalServer {
 
     fun install() {
         LocalBackend.realtime = { token, emit -> runRealtime(token, emit) }
+        // "X is typing", sent by the interface
+        LocalBackend.send = { text ->
+            runCatching {
+                val frame = JSONObject(text)
+                val type = frame.optString("type")
+                if (type == "BeginTyping" || type == "EndTyping") {
+                    conversationOfChannel(frame.optString("channel"))?.let {
+                        AirNetwork.sendTyping(it.id, type == "BeginTyping")
+                    }
+                }
+            }
+        }
     }
 
     /** Called when the person logs out from the settings. */
@@ -313,6 +325,7 @@ object AirLocalServer {
         val replies: List<String>,
         val attachments: List<AirNetwork.FileMeta>,
         val system: JSONObject? = null,
+        val pinned: Boolean = false,
     )
 
     private fun messageViews(conversation: AirConversation): List<MessageView> {
@@ -340,6 +353,12 @@ object AirLocalServer {
                 val users = reactions.getOrPut(parent) { mutableMapOf() }.getOrPut(emoji) { mutableSetOf() }
                 if (r.type == AirItem.REACT) users.add(r.author) else users.remove(r.author)
             }
+        // pinned messages: anyone in a private conversation, moderators in a server
+        val pinned = mutableSetOf<String>()
+        items.filter { it.type == AirItem.PIN || it.type == AirItem.UNPIN }
+            .filter { server == null || moderators(it.author) }
+            .sortedBy { it.createdAt }
+            .forEach { p -> p.parent?.let { if (p.type == AirItem.PIN) pinned.add(it) else pinned.remove(it) } }
         // "X joined the server", shown in the first channel of the server
         val joins = if (server != null && visibleChannels(server).firstOrNull()?.id == conversation.id) {
             AirNetwork.items.value.values.filter { it.conversation == server.id && it.type == AirItem.JOIN && it.id.length == 26 }
@@ -364,6 +383,7 @@ object AirLocalServer {
                     .mapValues { (_, users) -> users.map { userId(it) } },
                 replies = m.tags.filter { it.length == 26 },
                 attachments = AirNetwork.attachmentsOf(m),
+                pinned = m.id in pinned,
             )
         }
     }
@@ -379,6 +399,7 @@ object AirLocalServer {
             put("reactions", JSONObject().apply { m.reactions.forEach { (e, u) -> put(e, JSONArray(u)) } })
         }
         if (m.replies.isNotEmpty()) put("replies", JSONArray(m.replies))
+        if (m.pinned) put("pinned", true)
         if (m.attachments.isNotEmpty()) put("attachments", JSONArray().apply { m.attachments.forEach { put(autumnJson(it)) } })
     }
 
@@ -525,6 +546,16 @@ object AirLocalServer {
                 ok(JSONObject().put("_id", userId(self)).put("email", session.username))
             method == "GET" && path == "/auth/session/all" ->
                 ok(JSONArray().put(JSONObject().put("_id", SESSION_ID).put("name", "AIR Chat")))
+            method == "PATCH" && path == "/auth/account/change/password" -> {
+                val json = jsonBody(body)
+                when (AirAccount.changePassword(json.optString("current_password"), json.optString("password"))) {
+                    AirAccount.ChangeResult.Success -> ok()
+                    AirAccount.ChangeResult.WrongPassword -> error(401, "Mot de passe actuel incorrect.")
+                    AirAccount.ChangeResult.PasswordInvalid ->
+                        error(400, "Le nouveau mot de passe doit contenir au moins 4 lettres, 3 chiffres et 2 caractères spéciaux.")
+                    AirAccount.ChangeResult.NetworkError -> error(400, "Impossible de joindre le réseau. Réessayez.")
+                }
+            }
             s.firstOrNull() == "auth" -> ok()
             s.firstOrNull() == "push" -> ok()
             s.firstOrNull() == "safety" -> ok()
@@ -773,7 +804,9 @@ object AirLocalServer {
             sub == listOf("search") -> {
                 val searchBody = jsonBody(body)
                 val q = searchBody.optString("query").lowercase()
-                val found = messageViews(conversation).filter { q.isNotEmpty() && it.content.lowercase().contains(q) }
+                val onlyPinned = searchBody.optBoolean("pinned", false)
+                val found = messageViews(conversation)
+                    .filter { if (onlyPinned) it.pinned else q.isNotEmpty() && it.content.lowercase().contains(q) }
                     .sortedByDescending { it.id }.take(100)
                 ok(messagesResponse(conversation, found, includeUsers = searchBody.optBoolean("include_users", false)))
             }
@@ -787,7 +820,15 @@ object AirLocalServer {
                 ok()
             }
 
-            sub.size == 3 && sub[0] == "messages" && sub[2] == "pin" -> ok()
+            sub.size == 3 && sub[0] == "messages" && sub[2] == "pin" -> {
+                val server = AirServers.serverOf(conversation.id)
+                val me = AirNetwork.selfKey ?: return error(401, "Unauthorized")
+                if (server != null && me != AirServers.ownerOf(server) &&
+                    AirServers.permissions(server, me) and AirServers.MANAGE_MESSAGES == 0L
+                ) return error(403, "MissingPermission")
+                AirNetwork.post(conversation.id, if (method == "DELETE") AirItem.UNPIN else AirItem.PIN, "", parent = sub[1])
+                ok()
+            }
             else -> error(404, "NotFound")
         }
     }
@@ -1266,6 +1307,14 @@ object AirLocalServer {
                                 emit(frame("MessageDelete", JSONObject().put("id", item.parent).put("channel", channel)))
                             }
 
+                            AirItem.PIN, AirItem.UNPIN -> messageViews(conversation).firstOrNull { it.id == item.parent }?.let { view ->
+                                emit(frame("MessageUpdate", JSONObject().apply {
+                                    put("id", view.id); put("channel", channel)
+                                    put("data", JSONObject().put("pinned", view.pinned))
+                                    if (!view.pinned) put("clear", JSONArray().put("Pinned"))
+                                }))
+                            }
+
                             AirItem.REACT, AirItem.UNREACT -> emit(
                                 frame(if (item.type == AirItem.REACT) "MessageReact" else "MessageUnreact", JSONObject().apply {
                                     put("id", item.parent); put("channel_id", channel)
@@ -1365,6 +1414,29 @@ object AirLocalServer {
                         emit(frame("UserUpdate", JSONObject().apply {
                             put("id", userId(key))
                             put("data", JSONObject().put("badges", UserBadges.Verified.value))
+                        }))
+                    }
+                }
+            }
+
+            // "X is typing"
+            launch {
+                AirNetwork.typing.collect { t ->
+                    emit(frame(if (t.typing) "ChannelStartTyping" else "ChannelStopTyping", JSONObject().apply {
+                        put("id", channelId(t.conversation)); put("user", userId(t.author))
+                    }))
+                }
+            }
+
+            // Read positions, also those coming from my other devices
+            launch {
+                var previous = AirNetwork.acks.value
+                AirNetwork.acks.collect { current ->
+                    val before = previous
+                    previous = current
+                    current.filter { (k, v) -> before[k] != v }.forEach { (conv, id) ->
+                        emit(frame("ChannelAck", JSONObject().apply {
+                            put("id", channelId(conv)); put("user", userId(AirNetwork.selfKey ?: "")); put("message_id", id)
                         }))
                     }
                 }

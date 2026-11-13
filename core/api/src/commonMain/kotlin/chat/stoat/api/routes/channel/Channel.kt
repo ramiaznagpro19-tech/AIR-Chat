@@ -151,6 +151,14 @@ suspend fun deleteMessage(channelId: String, messageId: String) {
     StoatHttp.delete("/channels/$channelId/messages/$messageId".api())
 }
 
+suspend fun pinMessage(channelId: String, messageId: String) {
+    StoatHttp.post("/channels/$channelId/messages/$messageId/pin".api())
+}
+
+suspend fun unpinMessage(channelId: String, messageId: String) {
+    StoatHttp.delete("/channels/$channelId/messages/$messageId/pin".api())
+}
+
 suspend fun ackChannel(channelId: String, messageId: String = ULID.makeNext()) {
     StoatHttp.put("/channels/$channelId/ack/$messageId".api())
 }
