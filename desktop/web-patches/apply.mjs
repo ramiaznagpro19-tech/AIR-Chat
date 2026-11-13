@@ -239,3 +239,13 @@ patch("components/app/interface/settings/user/bots/MyBots.tsx", [
       </CategoryButton>`,
   ],
 ]);
+
+// 14. Account: an AIR Chat account is a username and a password (no email, no MFA, the
+// username can never change), so only what applies is shown
+patch("components/app/interface/settings/user/Account.tsx", [
+  ["      <MultiFactorAuth />\n      <ManageAccount />\n", "      <span style={{ opacity: 0.8 }}>\n        Votre compte AIR Chat est votre nom d'utilisateur et votre mot de passe. Le nom\n        d'utilisateur est unique et ne change jamais. Connectez-vous avec les mêmes sur tous\n        vos appareils (téléphone, PC) : vos serveurs, messages et amis s'y synchronisent.\n      </span>\n"],
+  [/<CategoryButton\s+action="chevron"\s+onClick=\{\(\) => \{\s*props\.onClose\?\.\(\);\s*stow\(\);[\s\S]*?<\/CategoryButton>/, ""],
+  [/<CategoryButton\s+action="chevron"\s+onClick=\{\(\) =>\s*openModal\(\{\s*type: "edit_email",[\s\S]*?<\/CategoryButton>/, ""],
+  [/<CategoryButton\s+action="chevron"\s+onClick=\{\(\) =>\s*openModal\(\{\s*type: "edit_password",[\s\S]*?<\/CategoryButton>/, ""],
+  [/<CategoryButton\s+action="chevron"\s+onClick=\{\(\) =>\s*openModal\(\{\s*type: "edit_username",\s*client: client\(\),\s*\}\)\s*\}/, "<CategoryButton\n        onClick={() => {}}"],
+]);

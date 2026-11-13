@@ -111,6 +111,12 @@ object AirLocalServer {
     private fun channelId(conversationId: String) = deriveId("c", conversationId)
     private fun serverId(conversationId: String) = deriveId("s", conversationId)
 
+    /** Interface id of a server (used by the automated screen tests). */
+    fun serverIdOf(conversationId: String) = serverId(conversationId)
+
+    /** AIR Chat conversation behind an interface channel id. */
+    fun conversationKeyOf(channelApiId: String): String? = conversationOfChannel(channelApiId)?.id
+
     /** Public key of a user id, if known. */
     fun publicKeyOf(userId: String): String? =
         idToKey[userId]?.takeIf { it.startsWith("u:") }?.removePrefix("u:") ?: run {

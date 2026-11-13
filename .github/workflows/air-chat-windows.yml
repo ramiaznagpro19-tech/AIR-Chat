@@ -65,19 +65,40 @@ jobs:
           path: web-src/packages/client/dist
 
   backend-test:
-    name: Peer-to-peer test (real network)
+    name: Peer-to-peer test (real network) and screenshots
+    needs: web
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Test
+      - uses: actions/download-artifact@v4
+        with:
+          name: air-chat-web
+          path: desktop/web
+      - name: Test (two PCs, bots, same account on two devices)
         working-directory: desktop
         run: |
           npm ci --ignore-scripts
           npm rebuild node-datachannel
           node test/p2p.mjs
+          node test/devices.mjs
+      - name: Screenshots of every screen
+        working-directory: desktop
+        run: |
+          npm i --no-save --ignore-scripts playwright@1.55.0
+          npx playwright install --with-deps chromium
+          node test/screens.mjs web ../pc-shots
+      - name: Publish the PC screenshots (branch "screenshots")
+        run: |
+          [ -d pc-shots ] && [ "$(ls pc-shots | wc -l)" -gt 0 ] || exit 0
+          git config user.name "AIR Chat CI"
+          git config user.email "ci@air-chat.invalid"
+          git fetch origin screenshots || true
+          git worktree add -B screenshots ../shots-branch origin/screenshots 2>/dev/null || git worktree add --orphan -b screenshots ../shots-branch || git worktree add -B screenshots ../shots-branch
+          rm -rf ../shots-branch/pc && mkdir -p ../shots-branch/pc && cp pc-shots/*.png ../shots-branch/pc/
+          cd ../shots-branch && git add -A pc && git commit -m "Captures d'écran PC (run ${{ github.run_number }})" && for i in 1 2 3 4; do git push origin screenshots && break; git pull --rebase origin screenshots; done || true
 
   exe:
     name: Windows EXE

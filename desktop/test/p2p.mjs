@@ -83,7 +83,7 @@ try {
       await call(47912, "POST", `/channels/${channel}/messages`, { content: "!regles" });
       check("custom command", !!(await waitFor(47912, "Soyez gentils")));
       let users = await call(47912, "GET", `/users/${bot._id}`);
-      for (let i = 0; i < 10 && !users.bot; i++) {
+      for (let i = 0; i < 30 && !(users.bot && users.username === "bot" + stamp); i++) {
         await sleep(1500);
         users = await call(47912, "GET", `/users/${bot._id}`);
       }

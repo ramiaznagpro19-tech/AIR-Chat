@@ -194,6 +194,58 @@ object AirNetwork {
     // Session
     // ------------------------------------------------------------------------------------
 
+    /** This installation (the same account can be used on several devices: phone, PC...). */
+    val deviceId: String by lazy {
+        val file = java.io.File(appContext.filesDir, "air_device_id")
+        runCatching { file.readText().trim() }.getOrNull()?.takeIf { it.length >= 8 }
+            ?: AirCrypto.hex(AirCrypto.randomBytes(8)).also { runCatching { file.writeText(it) } }
+    }
+
+    private var deviceSyncJob: Job? = null
+    private val sentToDevices = ConcurrentHashMap<String, String>()
+
+    /** Sends everything to my other devices (same account), every few minutes or when asked. */
+    private fun syncMyDevices(force: Boolean) {
+        val me = selfKey ?: return
+        val self = relayEndpoint(me)
+        val now = System.currentTimeMillis()
+        if (!force && now - self.syncedAt < RELAY_SYNC_INTERVAL_MS) return
+        self.syncedAt = now
+        self.syncedConversations.clear()
+        sendContactsToMyDevices()
+        sendProfile(self)
+        val all = _conversations.value.values.toList()
+        all.forEach { sendConversation(self, it) }
+        all.forEach { sendSync(self, it.id) }
+    }
+
+    private fun sendContactsToMyDevices() {
+        val me = selfKey ?: return
+        val list = JSONArray()
+        _contacts.value.values.forEach { list.put(JSONObject().put("key", it.publicKey).put("username", it.username)) }
+        relayEndpoint(me).deliver(JSONObject().put("t", "contacts").put("list", list))
+    }
+
+    /** New or changed conversations go to my other devices. */
+    private fun watchConversationsForDevices() {
+        deviceSyncJob?.cancel()
+        deviceSyncJob = scope.launch {
+            _conversations.collect { all ->
+                delay(2_000)
+                val me = selfKey ?: return@collect
+                val self = relayEndpoint(me)
+                all.values.forEach { c ->
+                    val json = conversationJson(c).toString()
+                    if (sentToDevices[c.id] == json) return@forEach
+                    sentToDevices[c.id] = json
+                    sendConversation(self, c)
+                    self.syncedConversations.remove(c.id)
+                    sendSync(self, c.id)
+                }
+            }
+        }
+    }
+
     fun start(newSession: AirAccount.Session) {
         if (session?.publicKey == newSession.publicKey) return
         stop()
@@ -225,10 +277,19 @@ object AirNetwork {
                 delay(HELLO_INTERVAL_MS)
             }
         }
+        // my other devices (PC, other phone...): exchange everything
+        scope.launch {
+            delay(2_500)
+            sendSignal(newSession.publicKey, JSONObject().put("t", "devhello"))
+            syncMyDevices(true)
+            watchConversationsForDevices()
+        }
     }
 
     fun stop() {
         AirBots.stop()
+        deviceSyncJob?.cancel()
+        sentToDevices.clear()
         helloJob?.cancel()
         inviteSubscriptions.values.forEach { NostrRelayPool.unsubscribe(it) }
         inviteSubscriptions.clear()
@@ -312,6 +373,7 @@ object AirNetwork {
             save()
         }
         sendHello(owner)
+        sendContactsToMyDevices()
         return contact
     }
 
@@ -387,6 +449,8 @@ object AirNetwork {
         )
         addItems(listOf(item))
         broadcastItems(conversationId, listOf(item), except = null)
+        // and to my other devices
+        selfKey?.let { sendItems(relayEndpoint(it), listOf(item)) }
         _conversations.value[conversationId]?.members?.forEach { member ->
             if (member != selfKey && peers[member]?.isOpen != true) sendHello(member)
         }
@@ -627,6 +691,7 @@ object AirNetwork {
             save()
         }
         peers.values.filter { it.isOpen }.forEach { sendProfile(it) }
+        sendProfile(relayEndpoint(me))
     }
 
     private fun profileJson(p: Profile) = JSONObject().apply {
@@ -895,6 +960,7 @@ object AirNetwork {
         scope.launch {
             try {
                 payload.put("from_name", current.username)
+                payload.put("dev", deviceId)
                 val sealed = AirCrypto.seal(signalKey(to), payload.toString().toByteArray(), "S|$to")
                 val event = NostrEvent.create(
                     current.privateKey,
@@ -922,6 +988,7 @@ object AirNetwork {
         val targets = _contacts.value.keys + _conversations.value.values.flatMap { it.members }
         targets.filter { it != selfKey && peers[it]?.isOpen != true }.toSet().forEach { sendHello(it) }
         relaySyncEveryone()
+        syncMyDevices(false)
     }
 
     private val handledSignals = ConcurrentHashMap.newKeySet<String>()
@@ -932,13 +999,26 @@ object AirNetwork {
         if (event.firstTag("p") != current.publicKey) return
         if (System.currentTimeMillis() / 1000 - event.createdAt > 120) return
         val from = event.pubkey
-        if (from == current.publicKey) return
 
         val json = try {
             JSONObject(
                 String(AirCrypto.open(signalKey(from), AirCrypto.unb64(event.content), "S|${current.publicKey}"))
             )
         } catch (e: Exception) {
+            return
+        }
+        if (from == current.publicKey) {
+            // another device of this account
+            val dev = json.optString("dev")
+            if (dev.isEmpty() || dev == deviceId) return
+            scope.launch {
+                runCatching {
+                    when (json.optString("t")) {
+                        "devhello" -> syncMyDevices(true)
+                        "relay" -> json.optJSONObject("d")?.let { onData(relayEndpoint(from), it) }
+                    }
+                }.onFailure { Log.w(TAG, "Device sync failed", it) }
+            }
             return
         }
 
@@ -1206,6 +1286,24 @@ object AirNetwork {
 
     private fun onData(peer: Endpoint, json: JSONObject) {
         when (json.optString("t")) {
+            "contacts" -> {
+                if (peer.publicKey != selfKey) return
+                val list = json.optJSONArray("list") ?: return
+                synchronized(lock) {
+                    var next = _contacts.value
+                    for (i in 0 until list.length()) {
+                        val o = list.optJSONObject(i) ?: continue
+                        val key = o.optString("key")
+                        if (key.length != 64 || key == selfKey || next.containsKey(key)) continue
+                        next = next + (key to AirContact(key, AirAccount.normalize(o.optString("username"))))
+                    }
+                    if (next != _contacts.value) {
+                        _contacts.value = next
+                        save()
+                    }
+                }
+            }
+
             "profile" -> json.optJSONObject("profile")?.let { onProfile(peer, it, json.optString("of").takeIf { o -> o.length == 64 }) }
             "fget" -> onFileRequest(peer, json.optString("id"))
             "fpart" -> onFilePart(json)

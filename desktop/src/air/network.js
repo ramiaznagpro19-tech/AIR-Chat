@@ -256,6 +256,24 @@ class Network extends Emitter {
     return this.session?.username ?? null;
   }
 
+  /** This installation (several devices can use the same account). */
+  get deviceId() {
+    if (!this._deviceId) {
+      const file = path.join(Vault.dir, "device-id");
+      try {
+        this._deviceId = fs.readFileSync(file, "utf8").trim();
+      } catch {}
+      if (!this._deviceId || this._deviceId.length < 8) {
+        this._deviceId = hex(randomBytes(8));
+        try {
+          fs.mkdirSync(Vault.dir, { recursive: true });
+          fs.writeFileSync(file, this._deviceId);
+        } catch {}
+      }
+    }
+    return this._deviceId;
+  }
+
   start(session) {
     if (this.session?.publicKey === session.publicKey) return;
     this.stop();
@@ -280,6 +298,11 @@ class Network extends Emitter {
     })();
     this.helloTimer = setInterval(() => this.helloEveryone(), HELLO_INTERVAL_MS);
     setTimeout(() => this.helloEveryone(), 1500);
+    // my other devices (phone, PC...): exchange everything
+    setTimeout(() => {
+      this.sendSignal(this.selfKey, { t: "devhello" });
+      this.syncMyDevices(true);
+    }, 2500);
     this.emit("started");
   }
 
@@ -303,6 +326,7 @@ class Network extends Emitter {
     this.fileMetas = new Map();
     this.settings = new Map();
     this.relayEndpoints = new Map();
+    this.sentToDevices = new Map();
     this.botOwners = new Map();
     this.emit("stopped");
   }
@@ -314,6 +338,7 @@ class Network extends Emitter {
     this.conversations = next;
     this.save();
     this.emit("conversations", prev, next);
+    this.scheduleDeviceSync();
   }
 
   setContacts(next) {
@@ -391,6 +416,7 @@ class Network extends Emitter {
     if (!owner || owner === this.selfKey) return null;
     const contact = { publicKey: owner, username: name };
     this.setContacts(new Map(this.contacts).set(owner, contact));
+    this.sendContactsToMyDevices();
     this.sendHello(owner);
     return contact;
   }
@@ -457,6 +483,8 @@ class Network extends Emitter {
     const item = { ...unsigned, signature: hex(signSchnorr(signedBytes(unsigned), s.privateKey)) };
     this.addItems([item]);
     this.broadcastItems(conversationId, [item], null);
+    // and to my other devices
+    if (this.selfKey) this.sendItems(this.relayEndpoint(this.selfKey), [item]);
     for (const m of this.conversations.get(conversationId)?.members ?? []) {
       if (m !== this.selfKey && !this.peers.get(m)?.isOpen) this.sendHello(m);
     }
@@ -699,6 +727,7 @@ class Network extends Emitter {
     const name = displayName == null ? null : take(String(displayName).trim(), 32) || null;
     this.setProfiles(new Map(this.profiles).set(me, { displayName: name, avatar: avatar || null, updatedAt: Date.now() }));
     for (const p of this.peers.values()) if (p.isOpen) this.sendProfile(p);
+    this.sendProfile(this.relayEndpoint(me));
   }
 
   profileJson(p, withMeta = true) {
@@ -923,7 +952,7 @@ class Network extends Emitter {
     // bots have no device of their own: their host already has everything
     if (this.botOwners.has(to)) return;
     try {
-      const body = { ...payload, from_name: s.username };
+      const body = { ...payload, from_name: s.username, dev: this.deviceId };
       const sealed = seal(this.signalKey(to), Buffer.from(JSON.stringify(body), "utf8"), `S|${to}`);
       relays.send(createEvent(s.privateKey, SIGNAL_KIND, [["p", to]], b64(sealed)));
     } catch (e) {
@@ -944,6 +973,48 @@ class Network extends Emitter {
     for (const c of this.conversations.values()) for (const m of c.members) targets.add(m);
     for (const t of targets) if (t && t !== this.selfKey && !this.peers.get(t)?.isOpen) this.sendHello(t);
     this.relaySyncEveryone();
+    this.syncMyDevices(false);
+  }
+
+  // ---- my other devices (same account on phone and PC) ----
+
+  syncMyDevices(force) {
+    const me = this.selfKey;
+    if (!me) return;
+    const self = this.relayEndpoint(me);
+    const now = Date.now();
+    if (!force && now - self.syncedAt < RELAY_SYNC_INTERVAL_MS) return;
+    self.syncedAt = now;
+    self.synced.clear();
+    this.sendContactsToMyDevices();
+    this.sendProfile(self);
+    for (const c of this.conversations.values()) this.sendConversation(self, c);
+    for (const c of this.conversations.values()) this.sendSync(self, c.id);
+  }
+
+  sendContactsToMyDevices() {
+    if (!this.selfKey) return;
+    this.relayDeliver(this.selfKey, {
+      t: "contacts",
+      list: [...this.contacts.values()].map((c) => ({ key: c.publicKey, username: c.username })),
+    });
+  }
+
+  scheduleDeviceSync() {
+    clearTimeout(this.deviceSyncTimer);
+    this.deviceSyncTimer = setTimeout(() => {
+      const me = this.selfKey;
+      if (!me) return;
+      const self = this.relayEndpoint(me);
+      const sent = (this.sentToDevices ??= new Map());
+      for (const c of this.conversations.values()) {
+        const json = JSON.stringify(conversationToJson(c));
+        if (sent.get(c.id) === json) continue;
+        sent.set(c.id, json);
+        this.sendConversation(self, c);
+        this.sendSync(self, c.id);
+      }
+    }, 2000);
   }
 
   // ---- relays as a fallback when no direct connection is possible (same as the phone app) ----
@@ -1010,11 +1081,17 @@ class Network extends Emitter {
     if (firstTag(event, "p") !== s.publicKey) return;
     if (Date.now() / 1000 - event.created_at > 120) return;
     const from = event.pubkey;
-    if (from === s.publicKey) return;
     let json;
     try {
       json = JSON.parse(Buffer.from(open(this.signalKey(from), unb64(event.content), `S|${s.publicKey}`)).toString("utf8"));
     } catch {
+      return;
+    }
+    if (from === s.publicKey) {
+      // another device of this account
+      if (!json.dev || json.dev === this.deviceId) return;
+      if (json.t === "devhello") this.syncMyDevices(true);
+      else if (json.t === "relay" && json.d) this.onData(this.relayEndpoint(from), json.d);
       return;
     }
     (async () => {
@@ -1165,6 +1242,19 @@ class Network extends Emitter {
 
   onData(peer, j) {
     switch (j.t) {
+      case "contacts":
+        if (peer.publicKey !== this.selfKey || !Array.isArray(j.list)) return;
+        {
+          const next = new Map(this.contacts);
+          let changed = false;
+          for (const c of j.list) {
+            if (typeof c.key !== "string" || c.key.length !== 64 || next.has(c.key) || c.key === this.selfKey) continue;
+            next.set(c.key, { publicKey: c.key, username: account.normalize(c.username) });
+            changed = true;
+          }
+          if (changed) this.setContacts(next);
+        }
+        return;
       case "profile":
         if (j.profile) this.onProfile(peer, j.profile, typeof j.of === "string" ? j.of : null);
         return;

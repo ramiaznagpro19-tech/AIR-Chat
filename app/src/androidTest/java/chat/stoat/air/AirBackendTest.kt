@@ -60,7 +60,8 @@ class AirBackendTest {
 
     @Test
     fun wholeBackendWorks() = runBlocking {
-        val username = "t" + System.currentTimeMillis().toString().takeLast(9)
+        val args = androidx.test.platform.app.InstrumentationRegistry.getArguments()
+        val username = args.getString("user")?.takeIf { it.isNotBlank() } ?: ("t" + System.currentTimeMillis().toString().takeLast(9))
         val password = "abcd123!?"
 
         AirAccount.useTestDirectory()
@@ -155,6 +156,18 @@ class AirBackendTest {
             }
             val emojiFile = step("uploadEmoji") { uploadToAutumn(png, "e.png", "emojis", ContentType.Image.PNG) }
             if (emojiFile != null) step("createEmoji") { createEmoji(emojiFile, serverId, "air") }
+            // The same account logged in on a PC writes in this server
+            if (!args.getString("user").isNullOrBlank()) step("same account on PC: its message arrives") {
+                var found: String? = null
+                for (i in 0 until 90) {
+                    delay(2_000)
+                    found = fetchMessagesFromChannel(channelId, limit = 50, includeUsers = false).messages
+                        ?.firstOrNull { it.content?.startsWith("écrit sur le PC") == true }?.content
+                    if (found != null) break
+                }
+                checkNotNull(found) { "nothing from the PC logged into the same account" }
+            }
+
             // Bots hosted by this phone
             val botName = "bot" + System.currentTimeMillis().toString().takeLast(8)
             val bot = step("bot: create") {

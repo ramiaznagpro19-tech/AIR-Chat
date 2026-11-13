@@ -522,6 +522,7 @@ fun AppEntrypoint(
     }
 
     val navController = rememberNavController()
+    chat.stoat.air.AirTestHooks.navController = navController
 
     StoatTheme(
         requestedTheme = LoadedSettings.theme,

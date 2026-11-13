@@ -9,6 +9,9 @@ concurrency:
   group: air-chat-backend-test-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: write
+
 jobs:
   emulator-test:
     runs-on: ubuntu-latest
@@ -70,11 +73,29 @@ jobs:
           script: |
             adb logcat -c || true
             nohup node desktop/test/pcbot.mjs pcbot${{ github.run_number }} > pcbot.log 2>&1 &
+            nohup node desktop/test/pcdevice.mjs phone${{ github.run_number }} 'abcd123!?' > pcdevice.log 2>&1 &
             adb install -r -g app/build/outputs/apk/debug/*.apk
             adb install -r -g app/build/outputs/apk/androidTest/debug/*.apk
-            adb shell am instrument -w -r -e class chat.stoat.air.AirBackendTest -e pcbot pcbot${{ github.run_number }} $(adb shell pm list instrumentation | grep -o 'instrumentation:[^ ]*' | grep -i test | head -1 | cut -d: -f2) | tee instrument.txt || true
+            adb shell am instrument -w -r -e class chat.stoat.air.AirBackendTest -e pcbot pcbot${{ github.run_number }} -e user phone${{ github.run_number }} $(adb shell pm list instrumentation | grep -o 'instrumentation:[^ ]*' | grep -i test | head -1 | cut -d: -f2) | tee instrument.txt || true
+            adb shell am instrument -w -r -e class chat.stoat.air.AirScreenshotTest -e pcbot pcbot${{ github.run_number }} -e user phone${{ github.run_number }} $(adb shell pm list instrumentation | grep -o 'instrumentation:[^ ]*' | grep -i test | head -1 | cut -d: -f2) | tee screenshots.txt || true
+            mkdir -p shots && SHOTS=$(grep -o 'AIRSHOT SUMMARY count=[0-9]* dir=[^ ]*' screenshots.txt | sed 's/.*dir=//' | tr -d '\r' | head -1) && [ -n "$SHOTS" ] && adb pull "$SHOTS/." shots/ || true
+            grep AIRSHOT screenshots.txt | head -60 || true
             cat pcbot.log || true
+            cat pcdevice.log || true
             adb logcat -d | grep -E "AIRTEST|AirBackendTest|AndroidRuntime|AirLocalServer|FATAL" | head -400 | tee logcat.txt || true
+
+      - name: Publish the phone screenshots (branch "screenshots")
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          [ -d shots ] && [ "$(ls shots | wc -l)" -gt 0 ] || { echo "no screenshots"; exit 0; }
+          git config user.name "AIR Chat CI"
+          git config user.email "ci@air-chat.invalid"
+          git fetch origin screenshots || true
+          git worktree add -B screenshots ../shots-branch origin/screenshots 2>/dev/null || git worktree add --orphan -b screenshots ../shots-branch || git worktree add -B screenshots ../shots-branch
+          rm -rf ../shots-branch/mobile && mkdir -p ../shots-branch/mobile && cp shots/*.png ../shots-branch/mobile/
+          cd ../shots-branch && git add -A mobile && git commit -m "Captures d'écran mobile (run ${{ github.run_number }})" && for i in 1 2 3 4; do git push origin screenshots && break; git pull --rebase origin screenshots; done || true
 
       - name: Upload test logs
         if: always()
